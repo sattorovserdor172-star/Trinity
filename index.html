@@ -1,345 +1,337 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unity MUN | Model United Nations</title>
-    <!-- Подключаем Tailwind CSS для быстрого дизайна -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        cherry: '#8B0000',
-                        gold: '#F5E6CA',
-                        light: '#F8F9FA'
-                    },
-                    fontFamily: {
-                        serif: ['Playfair Display', 'serif'],
-                        sans: ['Inter', 'sans-serif'],
-                    }
-                }
-            }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IELTS Prep Pro – Ace Your Exam</title>
+
+  <!-- Tailwind CSS CDN with custom config -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'radiant-yellow': '#FFD700', // Radiant yellow accent
+          }
         }
-    </script>
-    <!-- Подключаем шрифты -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        h1, h2, h3, .logo-font { font-family: 'Playfair Display', serif; }
-        .glass { background: rgba(139, 0, 0, 0.9); backdrop-filter: blur(10px); }
-    </style>
+      }
+    }
+  </script>
+
+  <!-- Custom CSS for modal transitions, hover scaling and coming-soon cards -->
+  <style>
+    .modal {
+      transition: opacity 0.3s ease;
+    }
+    .material-card {
+      transition: transform 0.3s ease;
+    }
+    .material-card:hover {
+      transform: scale(1.05);
+    }
+    /* Disable hover and pointer events for coming-soon cards */
+    .coming-soon .material-card:hover {
+      transform: none;
+    }
+    .coming-soon {
+      pointer-events: none;
+      opacity: 0.6;
+    }
+  </style>
 </head>
-<body class="bg-light text-gray-800 antialiased overflow-x-hidden">
 
-    <!-- Навигация -->
-    <nav class="glass fixed w-full z-50 top-0 shadow-lg">
-        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <!-- Место для логотипа (пока текст) -->
-                <span class="text-gold text-2xl font-bold logo-font tracking-wider">UNITY MUN</span>
-            </div>
-            <div class="hidden md:flex space-x-8 text-gold font-medium">
-                <a href="#about" class="hover:text-white transition">О нас</a>
-                <a href="#committees" class="hover:text-white transition">Комитеты</a>
-                <a href="#location" class="hover:text-white transition">Локация</a>
-            </div>
-            <a href="#register" class="bg-gold text-cherry px-6 py-2 rounded-full font-bold hover:bg-white transition shadow-md">
-                Подать заявку
-            </a>
+<body class="bg-gray-100 font-sans">
+  <!-- ===================== NAVIGATION ===================== -->
+  <nav class="bg-white shadow-md sticky top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <span class="text-2xl font-bold text-gray-800">🎓 IELTS<span class="text-radiant-yellow">Prep</span>Pro</span>
+      </div>
+
+      <!-- Nav links -->
+      <div class="hidden md:flex items-center space-x-6">
+        <a href="#dashboard" class="nav-link text-gray-700 hover:text-radiant-yellow font-medium" data-section="dashboard">Dashboard</a>
+        <a href="#about" class="nav-link text-gray-700 hover:text-radiant-yellow font-medium" data-section="about">About IELTS</a>
+        <a href="#pricing" class="nav-link text-gray-700 hover:text-radiant-yellow font-medium" data-section="pricing">Pricing</a>
+        <button id="admin-login-btn" class="bg-radiant-yellow text-gray-800 px-4 py-2 rounded-lg font-semibold hover:bg-yellow-400 transition">
+          Admin Login
+        </button>
+      </div>
+
+      <!-- Mobile menu button (simple toggle) -->
+      <button id="mobile-menu-btn" class="md:hidden text-gray-700 focus:outline-none">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile nav links (hidden by default) -->
+    <div id="mobile-nav" class="md:hidden hidden bg-white border-t border-gray-200 px-4 py-2 flex flex-col space-y-2">
+      <a href="#dashboard" class="nav-link text-gray-700 hover:text-radiant-yellow" data-section="dashboard">Dashboard</a>
+      <a href="#about" class="nav-link text-gray-700 hover:text-radiant-yellow" data-section="about">About IELTS</a>
+      <a href="#pricing" class="nav-link text-gray-700 hover:text-radiant-yellow" data-section="pricing">Pricing</a>
+      <button id="admin-login-btn-mobile" class="bg-radiant-yellow text-gray-800 px-4 py-2 rounded-lg font-semibold hover:bg-yellow-400 transition text-left">
+        Admin Login
+      </button>
+    </div>
+  </nav>
+
+  <!-- ===================== MAIN CONTENT ===================== -->
+  <main class="container mx-auto px-4 py-8">
+    <!-- ========== DASHBOARD SECTION ========== -->
+    <section id="dashboard-section" class="section">
+      <!-- Score Tracker -->
+      <div class="mb-8">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">📊 Your Score Tracker</h2>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div class="bg-white rounded-xl shadow p-4 text-center">
+            <p class="text-sm text-gray-500">Reading</p>
+            <p id="score-reading" class="text-3xl font-bold text-radiant-yellow">8.0</p>
+          </div>
+          <div class="bg-white rounded-xl shadow p-4 text-center">
+            <p class="text-sm text-gray-500">Listening</p>
+            <p id="score-listening" class="text-3xl font-bold text-radiant-yellow">7.0</p>
+          </div>
+          <div class="bg-white rounded-xl shadow p-4 text-center">
+            <p class="text-sm text-gray-500">Writing</p>
+            <p id="score-writing" class="text-3xl font-bold text-radiant-yellow">6.0</p>
+          </div>
+          <div class="bg-white rounded-xl shadow p-4 text-center">
+            <p class="text-sm text-gray-500">Speaking</p>
+            <p id="score-speaking" class="text-3xl font-bold text-radiant-yellow">6.5</p>
+          </div>
+          <div class="bg-white rounded-xl shadow p-4 text-center col-span-2 md:col-span-1">
+            <p class="text-sm text-gray-500">Overall Band</p>
+            <p id="score-overall" class="text-3xl font-bold text-gray-800">-</p>
+          </div>
         </div>
-    </nav>
+      </div>
 
-    <!-- Главный экран (Hero) -->
-    <header class="relative bg-cherry text-gold pt-32 pb-20 lg:pt-48 lg:pb-32 flex items-center justify-center text-center">
-        <!-- Декоративный фон (можно заменить на фото) -->
-        <div class="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?q=80&w=2000')] bg-cover bg-center"></div>
-        
-        <div class="relative z-10 container mx-auto px-6">
-            <h1 class="text-5xl md:text-7xl font-bold mb-6 drop-shadow-lg">
-                Uniting the World<br>for a Cleaner Future
-            </h1>
-            <p class="text-xl md:text-2xl font-light mb-10 max-w-2xl mx-auto opacity-90">
-                Международная конференция делегатов. Развивай лидерство, решай глобальные проблемы, строй будущее.
-            </p>
-            
-            <!-- Таймер обратного отсчета -->
-            <div class="flex justify-center space-x-4 md:space-x-8 mb-12">
-                <div class="bg-black bg-opacity-30 p-4 rounded-lg min-w-[80px]">
-                    <span id="days" class="text-4xl font-bold block">00</span>
-                    <span class="text-sm uppercase tracking-wider">Дней</span>
-                </div>
-                <div class="bg-black bg-opacity-30 p-4 rounded-lg min-w-[80px]">
-                    <span id="hours" class="text-4xl font-bold block">00</span>
-                    <span class="text-sm uppercase tracking-wider">Часов</span>
-                </div>
-                <div class="bg-black bg-opacity-30 p-4 rounded-lg min-w-[80px]">
-                    <span id="minutes" class="text-4xl font-bold block">00</span>
-                    <span class="text-sm uppercase tracking-wider">Минут</span>
-                </div>
-                <div class="bg-black bg-opacity-30 p-4 rounded-lg min-w-[80px]">
-                    <span id="seconds" class="text-4xl font-bold block">00</span>
-                    <span class="text-sm uppercase tracking-wider">Секунд</span>
-                </div>
-            </div>
+      <!-- AI Analyzer Button -->
+      <div class="mb-6 flex justify-end">
+        <button id="open-ai-modal" class="bg-radiant-yellow text-gray-800 px-6 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition shadow-md">
+          ✨ Free AI Analyzer
+        </button>
+      </div>
 
-            <a href="#register" class="inline-block border-2 border-gold text-gold hover:bg-gold hover:text-cherry px-8 py-4 rounded-full font-bold text-lg transition duration-300">
-                Стать делегатом
-            </a>
-        </div>
-    </header>
+      <!-- Filter Bar -->
+      <div class="mb-6 bg-white p-4 rounded-lg shadow flex flex-col md:flex-row gap-4 items-start md:items-center">
+        <label class="text-gray-700 font-medium">Filter by Section:</label>
+        <select id="filter-section" class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-radiant-yellow">
+          <option value="all">All Sections</option>
+          <option value="Reading">Reading</option>
+          <option value="Listening">Listening</option>
+        </select>
+        <label class="text-gray-700 font-medium">Difficulty:</label>
+        <select id="filter-difficulty" class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-radiant-yellow">
+          <option value="all">All Difficulties</option>
+          <option value="Easy">Easy</option>
+          <option value="Medium">Medium</option>
+          <option value="Hard">Hard</option>
+        </select>
+      </div>
 
-    <!-- Секция Локации -->
-    <section id="location" class="py-20 bg-white">
-        <div class="container mx-auto px-6 text-center">
-            <h2 class="text-4xl font-bold text-cherry mb-4">Место проведения</h2>
-            <div class="w-24 h-1 bg-gold mx-auto mb-10"></div>
-            
-            <div class="max-w-4xl mx-auto bg-light rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row">
-                <div class="md:w-1/2 p-8 text-left flex flex-col justify-center">
-                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Главный зал Ассамблеи</h3>
-                    <p class="text-gray-600 mb-6">Конференция пройдет в самом сердце региона. Мы подготовили лучшие залы для продуктивных дебатов и нетворкинга.</p>
-                    <div class="flex items-center text-cherry font-semibold mb-2">
-                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                        г. Фергана, Узбекистан
-                    </div>
-                    <div class="flex items-center text-cherry font-semibold">
-                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                        23 Августа 2026, 09:00
-                    </div>
-                </div>
-                <!-- Заглушка для карты или фото -->
-                <div class="md:w-1/2 bg-gray-300 h-64 md:h-auto bg-[url('https://images.unsplash.com/photo-1541888079870-071a6e9a7e6b?q=80&w=1000')] bg-cover bg-center">
-                </div>
-            </div>
-        </div>
+      <!-- Material Grid -->
+      <div id="material-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Cards will be rendered dynamically -->
+      </div>
     </section>
 
-    <!-- Секция Интерактивной заявки -->
-    <section id="register" class="py-20 bg-light">
-        <div class="container mx-auto px-6 max-w-2xl text-center">
-            <h2 class="text-4xl font-bold text-cherry mb-4">Присоединяйтесь к нам</h2>
-            <p class="text-gray-600 mb-8">Оставьте заявку, и вы получите доступ к личному кабинету делегата с гайдами и материалами.</p>
-            
-            <form id="munForm" class="bg-white p-8 rounded-2xl shadow-xl border-t-4 border-cherry" onsubmit="submitForm(event)">
-                <div class="mb-4 text-left">
-                    <label class="block text-gray-700 font-semibold mb-2">Полное имя</label>
-                    <input type="text" required class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-cherry focus:ring-1 focus:ring-cherry">
-                </div>
-                <div class="mb-4 text-left">
-                    <label class="block text-gray-700 font-semibold mb-2">Email</label>
-                    <input type="email" required class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-cherry focus:ring-1 focus:ring-cherry">
-                </div>
-                <div class="mb-6 text-left">
-                    <label class="block text-gray-700 font-semibold mb-2">Предпочитаемый комитет</label>
-                    <select class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-cherry">
-                        <option>Генеральная Ассамблея ООН</option>
-                        <option>Совет Безопасности</option>
-                        <option>ЭКОСОС (ECOSOC)</option>
-                    </select>
-                </div>
-                <button type="submit" class="w-full bg-cherry text-gold py-4 rounded-lg font-bold text-lg hover:bg-red-900 transition duration-300 shadow-lg">
-                    Отправить заявку
-                </button>
-            </form>
-
-            <!-- Окно успеха (Скрыто по умолчанию) -->
-            <div id="successMessage" class="hidden mt-8 bg-green-100 border-l-4 border-green-500 text-green-700 p-6 rounded-lg text-left shadow-lg">
-                <h3 class="font-bold text-xl mb-2">✅ Заявка успешно принята!</h3>
-                <p class="mb-4">Добро пожаловать в оргкомитет Unity. Ваш статус: <strong>На рассмотрении</strong>.</p>
-                <div class="bg-white p-4 rounded mt-2 border border-green-200">
-                    <p class="font-semibold text-gray-800">Ваши следующие шаги:</p>
-                    <ul class="list-disc pl-5 mt-2 text-sm text-gray-600">
-                        <li>Проверьте ваш Email для подтверждения.</li>
-                        <li><a href="#" class="text-blue-600 underline">Скачать Study Guide (PDF)</a></li>
-                        <li><a href="#" class="text-blue-600 underline">Присоединиться к Telegram-чату делегатов</a></li>
-                    </ul>
-                </div>
-            </div>
+    <!-- ========== ABOUT IELTS SECTION ========== -->
+    <section id="about-section" class="section hidden">
+      <div class="bg-white rounded-xl shadow p-8">
+        <h2 class="text-3xl font-bold text-gray-800 mb-4">About IELTS</h2>
+        <p class="text-gray-600 leading-relaxed">
+          The International English Language Testing System (IELTS) is the world’s most popular English language proficiency test for higher education and global migration. It assesses your abilities in listening, reading, writing and speaking. 
+          <br><br>
+          This platform provides you with high‑quality study materials, a score tracker, and an AI‑powered feedback module to help you identify weaknesses and improve your band score.
+        </p>
+        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="bg-gray-50 p-4 rounded-lg">
+            <h3 class="font-bold text-lg mb-2">Test Format</h3>
+            <ul class="list-disc list-inside text-gray-600 space-y-1">
+              <li>Listening – 30 minutes</li>
+              <li>Reading – 60 minutes</li>
+              <li>Writing – 60 minutes</li>
+              <li>Speaking – 11–14 minutes</li>
+            </ul>
+          </div>
+          <div class="bg-gray-50 p-4 rounded-lg">
+            <h3 class="font-bold text-lg mb-2">Band Score</h3>
+            <p class="text-gray-600">Scores are reported in whole and half bands, from 1 (non‑user) to 9 (expert user).</p>
+          </div>
         </div>
+      </div>
     </section>
 
-    <!-- Футер -->
-    <footer class="bg-cherry text-gold py-10 border-t-4 border-gold">
-        <div class="container mx-auto px-6 text-center">
-            <h2 class="text-2xl font-bold logo-font mb-4">UNITY MUN</h2>
-            <p class="opacity-75 mb-6">Uniting the World for a Cleaner Future.</p>
-            <p class="opacity-50 text-sm">&copy; 2026 Unity Project. Все права защищены.</p>
+    <!-- ========== PRICING SECTION ========== -->
+    <section id="pricing-section" class="section hidden">
+      <h2 class="text-3xl font-bold text-gray-800 mb-6">Choose Your Plan</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Free Plan -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-t-4 border-gray-300">
+          <h3 class="text-xl font-bold text-gray-800 mb-2">Free</h3>
+          <p class="text-4xl font-bold text-gray-800 mb-4">$0<span class="text-base font-normal text-gray-500">/month</span></p>
+          <ul class="space-y-2 text-gray-600 mb-6">
+            <li>✅ Access to free materials</li>
+            <li>✅ Basic score tracker</li>
+            <li>❌ Premium content</li>
+            <li>❌ AI Analyzer</li>
+          </ul>
+          <button class="subscribe-btn w-full bg-gray-300 text-gray-700 py-2 rounded-lg font-semibold cursor-default" data-plan="free" disabled>Current Plan</button>
         </div>
-    </footer>
-
-    <!-- Скрипт Таймера и Формы -->
-    <script>
-        // Устанавливаем дату: 23 августа 2026 года, 09:00:00
-        const countDownDate = new Date("Aug 23, 2026 09:00:00").getTime();
-
-        const x = setInterval(function() {
-            const now = new Date().getTime();
-            const distance = countDownDate - now;
-
-            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));С удовольствием! Я подготовил для тебя полный, готовый к работе код одностраничного сайта. В нем уже заложен вишнево-золотой дизайн, крутой счетчик до 23 августа (9:00 утра) и, самое главное, **интерактивная форма регистрации**. 
-
-Когда делегат заполняет заявку, страница не остается пустой — форма плавно сменяется экраном успешной регистрации с доступом к материалам (Study Guide). Местом проведения по умолчанию я указал Фергану, чтобы тебе не пришлось добавлять это с нуля.
-
-### Шаг 1: Код сайта (index.html)
-
-Создай на компьютере папку для проекта. Внутри создай файл с названием `index.html`, открой его в любом редакторе (например, VS Code или Блокнот) и вставь этот код. В эту же папку положи свой логотип, убедившись, что он называется точно `IMG_20260804_235524_278.png`.
-
-```html
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unity MUN | Международная Конференция</title>
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-    <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Playfair+Display:wght@600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Playfair+Display:wght@600;700&display=swap)" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        cherry: '#8B0000',
-                        gold: '#F5E6CA',
-                        light: '#F8F9FA',
-                        darkgray: '#2C3E50'
-                    },
-                    fontFamily: {
-                        serif: ['"Playfair Display"', 'serif'],
-                        sans: ['Inter', 'sans-serif']
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        .fade-in { animation: fadeIn 0.5s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    </style>
-</head>
-<body class="bg-light font-sans text-darkgray antialiased">
-
-    <!-- Навигация -->
-    <nav class="bg-cherry text-gold py-4 px-6 shadow-lg fixed w-full top-0 z-50">
-        <div class="max-w-6xl mx-auto flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <img src="IMG_20260804_235524_278.png" alt="Unity Logo" class="h-12">
-                <span class="font-serif font-bold text-2xl tracking-wide">UNITY MUN</span>
-            </div>
-            <a href="#register" class="hidden md:inline-block border-2 border-gold text-gold hover:bg-gold hover:text-cherry transition-colors duration-300 font-semibold py-2 px-5 rounded-full">
-                Подать заявку
-            </a>
+        <!-- Pro Plan -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-t-4 border-radiant-yellow transform md:scale-105">
+          <h3 class="text-xl font-bold text-gray-800 mb-2">Pro</h3>
+          <p class="text-4xl font-bold text-radiant-yellow mb-4">$9.99<span class="text-base font-normal text-gray-500">/month</span></p>
+          <ul class="space-y-2 text-gray-600 mb-6">
+            <li>✅ All free features</li>
+            <li>✅ All premium materials</li>
+            <li>✅ AI Analyzer</li>
+            <li>❌ Personal coaching</li>
+          </ul>
+          <button class="subscribe-btn w-full bg-radiant-yellow text-gray-800 py-2 rounded-lg font-semibold hover:bg-yellow-400 transition" data-plan="pro">Subscribe</button>
         </div>
-    </nav>
-
-    <!-- Главный экран (Hero) -->
-    <header class="bg-cherry text-gold pt-32 pb-20 px-6 text-center shadow-inner">
-        <div class="max-w-4xl mx-auto">
-            <h1 class="font-serif text-5xl md:text-6xl font-bold mb-6 leading-tight">Объединяя мировых лидеров будущего</h1>
-            <p class="text-lg md:text-xl font-light mb-10 text-gold/80">Официальная модель ООН. Практика дипломатии, глобальные дебаты и новые решения. Место проведения: Фергана, Узбекистан.</p>
-            
-            <!-- Таймер -->
-            <div class="flex justify-center space-x-4 md:space-x-8 mb-12">
-                <div class="text-center"><div id="days" class="text-4xl md:text-5xl font-serif font-bold">00</div><div class="text-sm uppercase tracking-wider mt-1">Дней</div></div>
-                <div class="text-center"><div id="hours" class="text-4xl md:text-5xl font-serif font-bold">00</div><div class="text-sm uppercase tracking-wider mt-1">Часов</div></div>
-                <div class="text-center"><div id="minutes" class="text-4xl md:text-5xl font-serif font-bold">00</div><div class="text-sm uppercase tracking-wider mt-1">Минут</div></div>
-                <div class="text-center"><div id="seconds" class="text-4xl md:text-5xl font-serif font-bold">00</div><div class="text-sm uppercase tracking-wider mt-1">Секунд</div></div>
-            </div>
+        <!-- VIP Plan -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-t-4 border-purple-500">
+          <h3 class="text-xl font-bold text-gray-800 mb-2">VIP</h3>
+          <p class="text-4xl font-bold text-purple-600 mb-4">$19.99<span class="text-base font-normal text-gray-500">/month</span></p>
+          <ul class="space-y-2 text-gray-600 mb-6">
+            <li>✅ All Pro features</li>
+            <li>✅ Personal coaching</li>
+            <li>✅ Mock speaking test</li>
+            <li>✅ Priority support</li>
+          </ul>
+          <button class="subscribe-btn w-full bg-purple-600 text-white py-2 rounded-lg font-semibold hover:bg-purple-500 transition" data-plan="vip">Subscribe</button>
         </div>
-    </header>
-
-    <!-- Блок регистрации и успеха -->
-    <section id="register" class="py-20 px-6 max-w-3xl mx-auto">
-        
-        <!-- Сама форма -->
-        <div id="form-container" class="bg-white p-8 md:p-12 rounded-2xl shadow-xl border-t-4 border-cherry">
-            <h2 class="font-serif text-3xl text-cherry font-bold mb-2 text-center">Регистрация Делегата</h2>
-            <p class="text-center text-gray-500 mb-8">Оставьте свои данные, чтобы забронировать место в комитете.</p>
-            
-            <form id="mun-form" class="space-y-6">
-                <div>
-                    <label class="block text-sm font-semibold mb-2">Полное имя</label>
-                    <input type="text" required class="w-full px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-cherry" placeholder="John Doe">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold mb-2">Желаемый комитет</label>
-                    <select class="w-full px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-cherry">
-                        <option>General Assembly (GA)</option>
-                        <option>Security Council (UNSC)</option>
-                        <option>Human Rights Council (UNHRC)</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold mb-2">Telegram / Телефон</label>
-                    <input type="text" required class="w-full px-4 py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-cherry" placeholder="@username">
-                </div>
-                <button type="submit" class="w-full bg-cherry text-gold font-bold py-4 rounded-lg hover:bg-red-900 transition-colors duration-300 shadow-md text-lg">
-                    Отправить заявку
-                </button>
-            </form>
-        </div>
-
-        <!-- Экран успеха (Скрыт по умолчанию) -->
-        <div id="success-container" class="hidden bg-cherry text-gold p-8 md:p-12 rounded-2xl shadow-xl text-center fade-in">
-            <svg class="w-16 h-16 mx-auto mb-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <h2 class="font-serif text-3xl font-bold mb-4">Заявка принята, Делегат!</h2>
-            <p class="mb-8 text-gold/90">Твой статус: <strong>На рассмотрении</strong>. Оргкомитет свяжется с тобой в ближайшее время.</p>
-            
-            <div class="bg-white/10 p-6 rounded-lg mb-6">
-                <h3 class="font-bold text-xl mb-2">Следующие шаги:</h3>
-                <ul class="text-left list-disc list-inside space-y-2 font-light">
-                    <li>Изучи правила процедуры (Rules of Procedure)</li>
-                    <li>Подготовь Position Paper для своей страны</li>
-                    <li>Соблюдай официальный дресс-код (Western Business Attire)</li>
-                </ul>
-            </div>
-            
-            <button onclick="location.reload()" class="border-2 border-gold text-gold hover:bg-gold hover:text-cherry py-2 px-6 rounded-full font-semibold transition-colors duration-300">
-                Вернуться на главную
-            </button>
-        </div>
-
+      </div>
     </section>
 
-    <!-- Подвал -->
-    <footer class="bg-darkgray text-light py-8 text-center border-t-4 border-cherry">
-        <p class="font-serif font-bold text-xl mb-2 text-gold">UNITY MUN 2026</p>
-        <p class="text-sm opacity-70">© 2026 Все права защищены. Локация: Фергана.</p>
-    </footer>
+    <!-- ========== ADMIN SECTION (hidden by default) ========== -->
+    <section id="admin-section" class="section hidden">
+      <div class="bg-white rounded-xl shadow p-8">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-800">🛠 Admin Panel</h2>
+          <button id="admin-logout-btn" class="text-red-500 hover:text-red-700 font-medium">Logout</button>
+        </div>
 
-    <!-- Скрипты для Таймера и Формы -->
-    <script>
-        // 1. Настройка таймера на 23 августа 2026, 09:00:00 (по местному времени)
-        const countDownDate = new Date("Aug 23, 2026 09:00:00").getTime();
+        <!-- Material Form -->
+        <div class="bg-gray-50 p-6 rounded-lg mb-8">
+          <h3 class="text-xl font-semibold mb-4" id="form-title">Add New Material</h3>
+          <form id="material-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="hidden" id="material-id" value="" />
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+              <input type="text" id="material-title" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-radiant-yellow" placeholder="e.g., Reading: Climate Change" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Section</label>
+              <select id="material-section" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-radiant-yellow">
+                <option value="Reading">Reading</option>
+                <option value="Listening">Listening</option>
+                <option value="Speaking">Speaking</option>
+                <option value="Writing">Writing</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
+              <select id="material-difficulty" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-radiant-yellow">
+                <option value="Easy">Easy</option>
+                <option value="Medium">Medium</option>
+                <option value="Hard">Hard</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Tags (comma separated)</label>
+              <input type="text" id="material-tags" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-radiant-yellow" placeholder="reading, true-false-not-given" />
+            </div>
+            <div class="flex items-center space-x-2">
+              <input type="checkbox" id="material-premium" class="h-4 w-4 text-radiant-yellow focus:ring-radiant-yellow" />
+              <label for="material-premium" class="text-sm font-medium text-gray-700">Premium content</label>
+            </div>
+            <div class="flex justify-end space-x-4">
+              <button type="button" id="cancel-edit-btn" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition hidden">Cancel Edit</button>
+              <button type="submit" id="form-submit-btn" class="px-6 py-2 bg-radiant-yellow text-gray-800 rounded-lg font-semibold hover:bg-yellow-400 transition">Add Material</button>
+            </div>
+          </form>
+        </div>
 
-        const x = setInterval(function() {
-            const now = new Date().getTime();
-            const distance = countDownDate - now;
+        <!-- Existing Materials List -->
+        <h3 class="text-xl font-semibold mb-4">Manage Materials</h3>
+        <div id="admin-material-list" class="space-y-2">
+          <!-- Admin list will be rendered here -->
+        </div>
+      </div>
+    </section>
+  </main>
 
-            if (distance < 0) {
-                clearInterval(x);
-                document.getElementById("days").innerHTML = "00";
-                document.getElementById("hours").innerHTML = "00";
-                document.getElementById("minutes").innerHTML = "00";
-                document.getElementById("seconds").innerHTML = "00";
-                return;
-            }
+  <!-- ===================== MODALS ===================== -->
+  <!-- AI Analyzer Modal -->
+  <div id="ai-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-gray-800">✨ AI Analyzer</h3>
+        <button class="close-modal text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+      </div>
+      <div id="ai-content">
+        <p class="text-gray-600 mb-4">Click the button below to analyse your recent practice test and get personalised feedback.</p>
+        <button id="run-ai-analysis" class="w-full bg-radiant-yellow text-gray-800 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition">Analyze My Weaknesses</button>
+        <div id="ai-result" class="mt-6 hidden">
+          <!-- Analysis result and recommendations will appear here -->
+        </div>
+      </div>
+    </div>
+  </div>
 
-            document.getElementById("days").innerHTML = Math.floor(distance / (1000 * 60 * 60 * 24)).toString().padStart(2, '0');
-            document.getElementById("hours").innerHTML = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)).toString().padStart(2, '0');
-            document.getElementById("minutes").innerHTML = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
-            document.getElementById("seconds").innerHTML = Math.floor((distance % (1000 * 60)) / 1000).toString().padStart(2, '0');
-        }, 1000);
+  <!-- Paywall Modal -->
+  <div id="paywall-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-gray-800">🔒 Premium Content</h3>
+        <button class="close-modal text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+      </div>
+      <p class="text-gray-600 mb-4">This is a premium material. Upgrade your plan to unlock all premium content, AI analyzer, and more.</p>
+      <div class="flex space-x-4">
+        <button id="paywall-upgrade-btn" class="flex-1 bg-radiant-yellow text-gray-800 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition">View Pricing</button>
+        <button class="close-modal flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">Close</button>
+      </div>
+    </div>
+  </div>
 
-        // 2. Обработка формы: скрываем форму, показываем дашборд
-        document.getElementById('mun-form').addEventListener('submit', function(e) {
-            e.preventDefault(); // Останавливаем перезагрузку страницы
-            document.getElementById('form-container').classList.add('hidden');
-            document.getElementById('success-container').classList.remove('hidden');
-        });
-    </script>
+  <!-- Admin Login Modal -->
+  <div id="admin-login-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-gray-800">🔐 Admin Login</h3>
+        <button class="close-modal text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+      </div>
+      <form id="admin-login-form">
+        <input type="password" id="admin-password" placeholder="Enter password" class="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-radiant-yellow" required />
+        <button type="submit" class="w-full bg-radiant-yellow text-gray-800 py-2 rounded-lg font-semibold hover:bg-yellow-400 transition">Login</button>
+        <p class="text-sm text-gray-500 mt-2 text-center">Hint: admin123</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Material Detail Modal (shown for free or unlocked premium) -->
+  <div id="material-detail-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="detail-title" class="text-xl font-bold text-gray-800">Material Title</h3>
+        <button class="close-modal text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+      </div>
+      <div id="detail-content" class="text-gray-600">
+        <!-- Details filled by JS -->
+      </div>
+      <button class="close-modal w-full mt-4 bg-gray-200 text-gray-800 py-2 rounded-lg font-semibold hover:bg-gray-300 transition">Close</button>
+    </div>
+  </div>
+
+  <!-- Toast (for simple notifications) -->
+  <div id="toast" class="fixed bottom-5 right-5 bg-gray-800 text-white px-5 py-3 rounded-lg shadow-lg hidden z-50"></div>
+
+  <script src="app.js"></script>
 </body>
 </html>
