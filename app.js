@@ -1,876 +1,1190 @@
-'use strict';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  ChevronLeft, ArrowRight, Check, X, Clock, Layers, Shuffle, Zap,
+  ClipboardCheck, Trophy, RotateCcw, GraduationCap, Target, BookOpen,
+} from 'lucide-react';
 
-/* =========================================================================
-   BrightBand IELTS — app.js
-   -------------------------------------------------------------------------
-   Vanilla JS app: no build step, no framework. Everything is driven by a
-   single `state` object; localStorage is used as a mock database so
-   materials and the user's plan survive a page refresh.
+/* ------------------------------------------------------------------ */
+/*  DATA — real words transcribed from Vocabook by @satashkent        */
+/*  Row shape: [word, tag, definition, example, antonym, altForms?]   */
+/* ------------------------------------------------------------------ */
 
-   Sections in this file:
-     1. Constants & mock data
-     2. State
-     3. Persistence (localStorage)
-     4. Init & navigation
-     5. Score tracker
-     6. Material grid & filtering
-     7. Material detail / paywall
-     8. AI analyzer
-     9. Pricing / subscriptions
-     10. Admin (auth + CRUD)
-     11. Modal / toast helpers
-     12. Event wiring
-     13. Small utilities
-   ========================================================================= */
-
-/* ---------------------------------------------------------------------- *
- * 1. CONSTANTS & MOCK DATA
- * ---------------------------------------------------------------------- */
-
-const STORAGE_KEYS = {
-  MATERIALS: 'brightband_materials_v1',
-  USER: 'brightband_user_v1',
-};
-
-// Mock admin password. This is a client-side demo only — never a real
-// auth scheme. Anyone with dev tools open can read this.
-const ADMIN_PASSWORD = 'admin123';
-
-// Human-readable labels for the tag slugs used across materials. Shared by
-// material cards, the material modal, and the AI analyzer.
-const TAG_LABELS = {
-  'true-false-not-given': 'True/False/Not Given',
-  'matching-headings': 'Matching Headings',
-  'summary-completion': 'Summary Completion',
-  'matching-features': 'Matching Features',
-  'skimming-scanning': 'Skimming & Scanning',
-  'note-completion': 'Note Completion',
-  'form-completion': 'Form Completion',
-  'map-labeling': 'Map & Plan Labelling',
-  'multiple-choice': 'Multiple Choice',
-  'table-completion': 'Table Completion',
-  'task-2': 'Task 2 Essays',
-  'essay-writing': 'Essay Writing',
-  'cue-card': 'Cue Cards',
-  'fluency': 'Fluency & Coherence',
-};
-
-// The default material catalogue. Seeded into localStorage on first visit,
-// then localStorage becomes the source of truth (so Admin edits persist).
-const DEFAULT_MATERIALS = [
-  { id: 'seed-1', title: 'True/False/Not Given Mastery', section: 'Reading', difficulty: 'Medium', tier: 'Free', tags: ['true-false-not-given'], description: 'Learn to tell "False" apart from "Not Given" with three targeted passages and full explanations.' },
-  { id: 'seed-2', title: 'Matching Headings Practice Set 1', section: 'Reading', difficulty: 'Easy', tier: 'Free', tags: ['matching-headings'], description: 'Build paragraph-skimming speed with twenty warm-up matching-headings questions.' },
-  { id: 'seed-3', title: 'Cambridge 18 Academic Reading — Full Mock', section: 'Reading', difficulty: 'Hard', tier: 'Premium', tags: ['true-false-not-given', 'matching-headings', 'summary-completion'], description: 'A complete timed reading mock test with examiner-style answer explanations for every question.' },
-  { id: 'seed-4', title: 'Summary Completion Drills', section: 'Reading', difficulty: 'Medium', tier: 'Premium', tags: ['summary-completion'], description: 'Practice locating exact-word answers under time pressure across four short summary tasks.' },
-  { id: 'seed-5', title: 'Skimming & Scanning Speed Techniques', section: 'Reading', difficulty: 'Easy', tier: 'Free', tags: ['skimming-scanning'], description: 'A short technique guide plus drills to help you read passages faster without losing accuracy.' },
-  { id: 'seed-6', title: 'Matching Features & Sentence Endings', section: 'Reading', difficulty: 'Hard', tier: 'Premium', tags: ['matching-features'], description: 'Advanced practice on two of the trickiest Reading question types, with detailed error analysis.' },
-  { id: 'seed-7', title: 'Yes/No/Not Given for General Training', section: 'Reading', difficulty: 'Medium', tier: 'Premium', tags: ['true-false-not-given'], description: 'General Training-focused practice on the Yes/No/Not Given format, with common traps explained.' },
-  { id: 'seed-8', title: 'Listening Section 1: Everyday Conversations', section: 'Listening', difficulty: 'Easy', tier: 'Free', tags: ['note-completion', 'form-completion'], description: 'Warm up with three short-conversation recordings and form-completion questions.' },
-  { id: 'seed-9', title: 'Map & Plan Labelling Bootcamp', section: 'Listening', difficulty: 'Medium', tier: 'Premium', tags: ['map-labeling'], description: 'Master directional vocabulary and keep pace with fast-moving map descriptions.' },
-  { id: 'seed-10', title: 'Multiple Choice Listening Traps', section: 'Listening', difficulty: 'Medium', tier: 'Free', tags: ['multiple-choice'], description: 'Learn to recognise paraphrased distractors before the audio moves on.' },
-  { id: 'seed-11', title: 'Academic Lecture Note-Taking (Section 4)', section: 'Listening', difficulty: 'Hard', tier: 'Premium', tags: ['note-completion', 'summary-completion'], description: 'Practice sustained note-taking on a full monologue lecture, Section 4 style.' },
-  { id: 'seed-12', title: 'Full Mock Listening Test — Cambridge 17', section: 'Listening', difficulty: 'Hard', tier: 'Premium', tags: ['multiple-choice', 'map-labeling', 'note-completion'], description: 'A complete 40-question timed listening mock covering all four sections.' },
-  { id: 'seed-13', title: 'Form & Note Completion Practice Set 2', section: 'Listening', difficulty: 'Easy', tier: 'Free', tags: ['note-completion'], description: 'Ten short-answer questions to sharpen your number, date, and spelling accuracy.' },
-  { id: 'seed-14', title: 'Diagram & Table Completion', section: 'Listening', difficulty: 'Medium', tier: 'Premium', tags: ['table-completion', 'map-labeling'], description: 'Practice transferring spoken detail onto diagrams and tables without losing your place.' },
-  { id: 'seed-15', title: 'Task 2 Essay Structures & Model Answers', section: 'Writing', difficulty: 'Medium', tier: 'Premium', tags: ['task-2', 'essay-writing'], description: 'A bank of high-scoring model essays with structure breakdowns.' },
-  { id: 'seed-16', title: 'Part 2 Cue Card Bank', section: 'Speaking', difficulty: 'Medium', tier: 'Free', tags: ['cue-card', 'fluency'], description: '100+ real cue cards with sample answers and fluency tips.' },
+const CP_SET_1 = [
+  ['Erratic', 'ADJECTIVE', `Unpredictable, inconsistent, irregular`, `His erratic dance moves were so unpredictable that even the DJ couldn't keep up with the beat.`, `Predictable`],
+  ['Secluded', 'ADJECTIVE', `Hard to reach, hidden away`, `The WiFi signal was so bad in the secluded cabin that they had to make friends with the squirrels just for entertainment.`, `Accessible`],
+  ['Fluctuate', 'VERB', `To rise and fall irregularly`, `His mood fluctuates like the stock market — happy when he gets pizza, but plummeting when it runs out.`, `Stabilize`],
+  ['Exalt', 'VERB', `To praise, to worship`, `She exalted her coffee maker every morning, whispering, "You are my hero," as it brewed her life-saving caffeine.`, `Criticize`],
+  ['Admonish', 'VERB', `To warn or scold someone`, `The cat was admonished for knocking over the vase, but its smug face said, "I regret nothing!"`, `Praise`],
+  ['Abrupt', 'ADJECTIVE', `Sudden, unexpected, without warning`, `His abrupt decision to cut his hair at 3 a.m. left him looking like a porcupine in a windstorm.`, `Gradual`],
+  ['Content', 'ADJECTIVE', `Satisfied`, `After eating an entire pizza by himself, he was so content that even the thought of dessert couldn't move him.`, `Discontent`],
+  ['Eccentric', 'ADJECTIVE', `Uncommon, strange`, `His eccentric habit of wearing socks over his shoes made people think he was either a genius or just really confused.`, `Conventional`],
+  ['Mired', 'ADJECTIVE', `Stuck in mud`, `She was so mired in paperwork that even a bulldozer wouldn't be able to dig her out of her office.`, `Free`],
+  ['Colloquial', 'ADJECTIVE', `Used in casual conversation`, `His speech was so full of colloquial slang that even his grandma said, "Bruh, I don't understand you."`, `Formal`],
+  ['Reconcile', 'VERB', `Settle one's differences, make compatible, bring back to peace`, `They finally reconciled after their epic debate over whether pineapple belongs on pizza. Spoiler: it doesn't.`, `Estrange`],
+  ['Alienate', 'VERB', `To cause someone to feel isolated or lonely`, `His decision to start every conversation with a detailed history of traffic lights quickly alienated all his friends.`, `Befriend`],
+  ['Distinguish', 'VERB', `To tell the difference between`, `He could barely distinguish between his identical twin brothers until one started wearing neon green socks every day.`, `Confuse`],
+  ['Adequate', 'ADJECTIVE', `Sufficient, enough, acceptable`, `His cooking skills were adequate — let's just say the fire alarm got a workout, but the pizza wasn't that burnt.`, `Inadequate`],
+  ['Contend', 'VERB', `1) To deal with someone or something 2) To claim or state a belief confidently`, `He contended with his alarm clock every morning as if it was a fierce battle between sleep and reality.`, `Surrender`],
+  ['Skeptical', 'ADJECTIVE', `Having doubts`, `She was skeptical about the "miracle" face cream that claimed to make her look 20 years younger overnight.`, `Trusting`],
+  ['Enfranchise', 'VERB', `To give the right to vote`, `The town held a parade to celebrate when they finally enfranchised the local raccoons… though they immediately voted for more trash cans.`, `Disenfranchise, enslave`],
+  ['Sophisticated', 'ADJECTIVE', `1) Having a lot of worldly experience and knowledge 2) Complicated`, `His sophisticated taste in cheese made him the only person who actually knew what "gorgonzola" was at the party.`, `Naive`],
+  ['Radical', 'ADJECTIVE', `1) Thorough, complete, extensive 2) Fundamental, essential 3) Revolutionary, extreme`, `His radical idea to solve all the world's problems by making every Friday "Free Ice Cream Day" was met with mixed reviews, mostly from lactose-intolerant folks.`, `Conservative`],
+  ['Formulate', 'VERB', `To create or think up`, `She formulated a foolproof plan to sneak past her dog — step one: tiptoe; step two: realize dogs can hear everything.`, `Destroy`],
+  ['Attest', 'VERB', `To confirm or verify`, `He could attest to the fact that eating 10 tacos in one sitting was not a good life decision.`, `Deny`],
+  ['Vexing', 'ADJECTIVE', `Annoying, irritating`, `The constant buzzing of the fly around his head was so vexing that he considered giving it a name just to yell at it properly.`, `Pleasing`],
+  ['Unassuming', 'ADJECTIVE', `Humble, low-key`, `The unassuming librarian turned out to be a ninja in her free time, proving you can't judge a book by its cover.`, `Arrogant`],
+  ['Coerce', 'VERB', `To pressure or force someone to do something`, `He coerced his little brother into trading his chocolate bar for a carrot by promising it was "just as tasty." It wasn't.`, `Persuade (gently)`],
+  ['Adept', 'ADJECTIVE', `Very skilled at something`, `She was so adept at parallel parking that she could fit a bus into a space meant for a bicycle.`, `Inept, mediocre, amateur`],
 ];
 
-const DEFAULT_USER = {
-  plan: 'free', // 'free' | 'pro' | 'vip'
-  scores: { listening: 7.0, reading: 8.0, writing: 6.0, speaking: 6.5 },
-};
-
-// Simulated weak points for the AI analyzer. Each maps to a tag so
-// recommendations can be pulled straight from the material catalogue.
-const WEAK_POINTS = [
-  { tag: 'true-false-not-given', label: 'True/False/Not Given', section: 'Reading', tip: 'Focus on the difference between "False" (the text says the opposite) and "Not Given" (the text simply doesn\u2019t say) — this single distinction accounts for most lost marks.' },
-  { tag: 'matching-headings', label: 'Matching Headings', section: 'Reading', tip: 'Read each paragraph\u2019s first and last sentence before choosing a heading, and rule out options that only match one small detail.' },
-  { tag: 'map-labeling', label: 'Map & Plan Labelling', section: 'Listening', tip: 'Preview the map before the audio starts and actively track directional language like "opposite," "adjacent to," and "next to."' },
-  { tag: 'note-completion', label: 'Note & Form Completion', section: 'Listening', tip: 'Predict the word type — a number, a date, a name — for each gap before you listen. It narrows down exactly what to listen for.' },
-  { tag: 'multiple-choice', label: 'Multiple Choice', section: 'Listening', tip: 'Watch for paraphrasing: the correct option rarely repeats the exact words used in the recording.' },
-  { tag: 'summary-completion', label: 'Summary Completion', section: 'Reading', tip: 'Skim the summary first to understand its overall topic, then hunt for matching information in the passage.' },
+const CP_SET_2 = [
+  ['Eloquent', 'ADJECTIVE', `Fluent or persuasive in speaking or writing`, `His speech was so eloquent that even his dog stopped barking just to listen.`, `Inarticulate, dullness`],
+  ['Austere', 'ADJECTIVE', `Plain and without decoration, comforts, or anything extra`, `Her living room was so austere that the only decoration was a single chair — perfect for minimalist extreme sports.`, `Ornate, luxurious`],
+  ['Dread', 'VERB', `To fear, be afraid of`, `He dreaded his mom's reaction to the broken vase, but he blamed the wind — inside the house.`, `Welcome, anticipate`],
+  ['Inevitable', 'ADJECTIVE', `Unavoidable`, `It was inevitable that he would trip while texting and walking, as everyone saw it coming — except him.`, `Avoidable, uncertain`],
+  ['Stress', 'VERB', `To emphasize`, `She stressed the importance of cleaning the room, but it still looked like a tornado had moved in.`, `Downplay, minimize`],
+  ['Spawn', 'VERB', `To produce, generate, or create`, `The idea for his movie spawned after a dream where penguins took over the world with dance battles.`, `Destroy, terminate`],
+  ['Renounce', 'VERB', `To give up, deny, or surrender something`, `He renounced his superhero cape after one too many failed attempts at flying off the couch.`, `Accept, embrace`],
+  ['Unprecedented', 'ADJECTIVE', `Never done or known before`, `His unprecedented move to start a cheese museum in his basement had the neighbors curiously excited.`, `Common, routine`],
+  ['Broach', 'VERB', `To bring up a difficult subject for discussion`, `He broached the subject of missing rent with his landlord, who thankfully had a sense of humor — about everything except rent.`, `Avoid, suppress`],
+  ['Proxy', 'NOUN', `A person authorized to act on behalf of another; substitute`, `He sent his dog as a proxy to the meeting, but all they got was a bowl of snacks and a nap under the table.`, `Principal, original`],
+  ['Detrimental', 'ADJECTIVE', `Harmful, damaging`, `Eating 10 donuts for breakfast might be detrimental to your health, but it's great for your mood — temporarily.`, `Beneficial, constructive`],
+  ['Secular', 'ADJECTIVE', `Having no religious or spiritual basis`, `The concert was entirely secular, except for the part where the lead singer thanked "the universe" for his fans.`, `Sacred, religious`],
+  ['Innovative', 'ADJECTIVE', `New and different`, `His innovative way of organizing his closet involved attaching his shirts to a ceiling fan — one quick spin, and he was dressed.`, `Unoriginal, traditional`],
+  ['Tangible', 'ADJECTIVE', `Real and able to be shown or touched`, `The excitement in the room was so tangible, you could practically high-five it.`, `Intangible, abstract`],
+  ['Disseminate', 'VERB', `To spread widely (particularly information)`, `He tried to disseminate the news about the school trip, but it somehow turned into a rumor about a school-wide pizza party.`, `Conceal, contain`],
+  ['Delegate', 'VERB', `To assign a task to another person`, `He delegated the dishwashing duty to his little brother, but somehow the dishes were still dirty, and the brother was missing.`, `Retain, withhold`],
+  ['Apparent', 'ADJECTIVE', `Clearly visible or understood; obvious`, `It became apparent that he had no idea how to assemble the furniture when the bookshelf started resembling a chair.`, `Hidden, obscure`],
+  ['Postulate', 'VERB', `To suggest or propose something`, `He postulated that pizza should be considered a vegetable, which earned him both laughs and several high-fives.`, `Reject, deny`],
+  ['Speculate', 'VERB', `To guess, to form a theory without firm evidence`, `He speculated that his lost sock had fallen into a black hole because where else could it have gone?`, `Prove, verify`],
+  ['Bazaar', 'NOUN', `A market selling a large variety of goods`, `The bazaar had everything from handmade rugs to pet unicorn horns — for cats, of course.`, `Boutique, supermarket`],
+  ['Sporadic', 'ADJECTIVE', `Scattered, irregular, unpredictable`, `His sporadic attempts to clean his room usually started strong and ended with him watching TV in the mess.`, `Consistent, regular`],
+  ['Suffrage', 'NOUN', `The right to vote`, `She celebrated when women gained suffrage by voting for the cutest puppy in the election for "Pet of the Year."`, `Disenfranchisement, disqualification`],
+  ['Incredulous', 'ADJECTIVE', `Unwilling or unable to believe something`, `He was incredulous when his cat finally learned how to fetch. "Next up," he said, "playing the piano."`, `Believing, gullible`],
+  ['Idealistic', 'ADJECTIVE', `Unrealistically aiming for perfection`, `His idealistic goal of becoming a world-class chef in a week ended when he burned toast — three times in a row.`, `Realistic, pragmatic`],
+  ['Conflate', 'VERB', `To mix or combine into one (typically ideas)`, `He conflated his birthday party with Halloween, so everyone showed up in costumes to celebrate his "vampire cake."`, `Separate, divide`],
 ];
 
-// Shared class strings for JS-rendered elements (material cards, badges).
-// Kept as full literal strings — Tailwind's CDN build only picks up
-// classes it can see written out in full, so these are never built by
-// concatenating color/shade fragments.
-const CARD_BASE_CLASSES = 'group relative flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-sm transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 focus-visible:ring-offset-paper cursor-pointer';
-const CARD_SOON_CLASSES = 'opacity-75 saturate-[0.55] hover:translate-y-0 hover:scale-100 hover:shadow-sm cursor-default';
-const BADGE_BASE_CLASSES = 'inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-display text-[11px] font-bold';
-const DIFFICULTY_CLASSES = {
-  Easy: BADGE_BASE_CLASSES + ' bg-emerald-50 text-emerald-700',
-  Medium: BADGE_BASE_CLASSES + ' bg-sky-50 text-sky-700',
-  Hard: BADGE_BASE_CLASSES + ' bg-rose-50 text-rose-700',
-};
+const CP_SET_3 = [
+  ['Paucity', 'NOUN', `Poverty, scarcity`, `The paucity of snacks at the party led to a fierce competition over the last slice of pizza.`, `Abundance, plentifulness`],
+  ['Ephemeral', 'ADJECTIVE', `Temporary, short-lived`, `His enthusiasm for working out was ephemeral — lasting just long enough to post about it on social media.`, `Permanent, lasting`],
+  ['Prompt', 'VERB', `To cause (someone) to take a course of action`, `The sight of chocolate cake promptly caused him to break his diet with zero hesitation.`, `Discourage, deter`],
+  ['Reverence', 'NOUN', `Deep respect for someone or something`, `He showed great reverence for his grandma's cooking, bowing before every plate of lasagna like it was a royal feast.`, `Disrespect, scorn`],
+  ['Disparity', 'NOUN', `A great difference`, `The disparity between his baking skills and his sister's was obvious when his cookies looked like rocks and hers like art.`, `Similarity, equality`],
+  ['Dispassionate', 'ADJECTIVE', `Not influenced by strong emotion, fair-minded`, `As the judge, she remained dispassionate, even when the defendant made a very emotional argument about losing his last donut.`, `Emotional, biased`],
+  ['Phenomenon', 'NOUN', `A noteworthy occurrence or situation`, `The sudden appearance of a double rainbow after the storm was such a phenomenon that everyone stopped to take selfies with it.`, `Ordinary, normality`],
+  ['Boast', 'VERB', `To brag, to show off`, `He boasted so much about his new car that his friends started pretending they couldn't hear him.`, `Humble, conceal`],
+  ['Irksome', 'ADJECTIVE', `Irritating, annoying`, `The irksome sound of his neighbor's endless lawn mowing made him wish grass would just stop growing.`, `Pleasant, agreeable`],
+  ['Allude', 'VERB', `To suggest or call attention to indirectly, to make a reference to something`, `She alluded to the surprise party by "accidentally" mentioning how much she loved cake in every conversation.`, `State directly, declare`],
+  ['Omnipotence', 'NOUN', `Having unlimited or great power`, `He felt a sense of omnipotence when he finally found the TV remote, as if he could control the whole universe.`, `Powerlessness, weakness`],
+  ['Provoke', 'VERB', `To cause a reaction or emotion (usually anger); to trigger`, `His joke about pineapple on pizza provoked a heated debate that threatened to divide the whole group of friends.`, `Pacify, calm`],
+  ['Indulge', 'VERB', `To allow oneself to enjoy the pleasure of`, `He decided to indulge in a whole tub of ice cream after a long day of pretending to eat salads.`, `Abstain, deny`],
+  ['Entrenched', 'ADJECTIVE', `Firmly established and unlikely to change`, `His entrenched belief that socks and sandals were the height of fashion would not be swayed by any amount of ridicule.`, `Flexible, unstable`],
+  ['Inherent', 'ADJECTIVE', `Built-in, existing in something as a permanent or essential characteristic`, `His inherent love of naps made him the best couch tester in the world.`, `Acquired, external`],
+  ['Vernacular', 'NOUN', `Everyday informal language, local dialect`, `He quickly picked up the local vernacular, casually saying "y'all" after just one day in Texas.`, `Formal language, literary language`],
+  ['Inquisition', 'NOUN', `Interrogation, questioning`, `His mom's inquisition about his missing homework felt more intense than a detective show.`, `Neglect, ignorance`],
+  ['Anecdote', 'NOUN', `A short personal story`, `He told an amusing anecdote about the time he accidentally walked into the wrong Zoom meeting — and stayed for an hour.`, `Epic, long narrative`],
+  ['Malign', 'ADJECTIVE', `Evil in nature, harmful`, `The villain's malign plot to steal all the world's ice cream was met with global outrage.`, `Benevolent, kind`],
+  ['Anomaly', 'NOUN', `Oddity, something that is not normal`, `His punctuality was such an anomaly that everyone asked if he was feeling okay when he arrived on time.`, `Normality, usualness`],
+  ['Inhibit', 'VERB', `To hold someone or something back, to suppress, to prevent`, `His fear of public speaking inhibited him from raising his hand in class, even when he knew all the answers.`, `Encourage, allow`],
+  ['Mutable', 'ADJECTIVE', `Changeable`, `His mutable schedule meant that nobody ever knew when he'd actually show up.`, `Fixed, stable`],
+  ['Petty', 'ADJECTIVE', `1) Of little importance 2) Caring too much about trivial matters`, `The argument over whose turn it was to pick a movie was so petty that even the dog rolled his eyes.`, `Significant, important`],
+  ['Avid', 'ADJECTIVE', `Passionate about something`, `He was such an avid collector of rare comic books that he could smell a first edition from a mile away.`, `Indifferent, apathetic`],
+  ['Invoke', 'VERB', `To call on or refer to something`, `He tried to invoke the "5-second rule" after dropping his sandwich, but it was too late — the dog already had it.`, `Dismiss, ignore`],
+];
 
-const ICON_LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-const ICON_UNLOCKED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3"><path d="M5 13l4 4L19 7"/></svg>';
-const ICON_CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>';
+const SAT_SET_1 = [
+  ['Copious', 'ADJECTIVE', `Abundant in supply or quantity`, `She had copious notes from the lecture.`, `Scarce, sparse`],
+  ['Sporadic', 'ADJECTIVE', `Occurring irregularly or at intervals`, `The rain was sporadic throughout the day.`, `Consistent, regular`],
+  ['Transpose', 'VERB', `To change the order or arrangement of something`, `The teacher asked us to transpose the rows and columns.`, `Organize, maintain`],
+  ['Lament', 'VERB', `To express sorrow or regret`, `He lamented the loss of his childhood home.`, `Celebrate, rejoice`],
+  ['Entail', 'VERB', `To involve or require as a necessary part`, `This project entails a lot of research and dedication.`, `Exclude, omit`],
+  ['Momentous', 'ADJECTIVE', `Of great importance or significance`, `The signing of the treaty was a momentous occasion.`, `Insignificant, trivial`],
+  ['Pristine', 'ADJECTIVE', `Clean and unspoiled; in its original state`, `The forest remains pristine despite nearby urbanization.`, `Dirty, corrupted`],
+  ['Constrict', 'VERB', `To make narrower by pressing together`, `The snake constricted its prey tightly.`, `Expand, release`],
+  ['Nebulous', 'ADJECTIVE', `Vague, unclear, or ill-defined`, `His plans for the future remain nebulous.`, `Clear, distinct`],
+  ['Buttress', 'VERB', `To support or strengthen something`, `The new law is intended to buttress economic growth.`, `Weaken, undermine`],
+  ['Refute', 'VERB', `To disprove or argue against`, `He refuted the allegations with solid evidence.`, `Support, confirm`],
+  ['Corroborate', 'VERB', `To confirm or give support to`, `The scientist corroborated the findings with additional data.`, `Contradict, oppose`],
+  ['Scrupulous', 'ADJECTIVE', `Thorough and attentive to detail`, `Her scrupulous approach ensures accuracy in her work.`, `Careless, negligent`],
+  ['Vindicate', 'VERB', `To clear someone of blame or suspicion`, `New evidence vindicated the wrongly accused man.`, `Blame, incriminate`],
+  ['Preclude', 'VERB', `To prevent something from happening`, `Heavy rain precluded us from going hiking.`, `Enable, permit`],
+  ['Repudiate', 'VERB', `To reject or disown something`, `He repudiated the accusations during the trial.`, `Accept, embrace`],
+  ['Mitigate', 'VERB', `To make less severe, serious, or painful`, `Measures were taken to mitigate the effects of climate change.`, `Aggravate, intensify`],
+  ['Outsized', 'ADJECTIVE', `Unusually large or oversized`, `The outsized package couldn't fit through the door.`, `Small, undersized`],
+  ['Palpable', 'ADJECTIVE', `Easily noticeable or capable of being felt`, `There was a palpable sense of excitement in the air.`, `Subtle, intangible`],
+  ['Evince', 'VERB', `To show or demonstrate clearly`, `The data evinced a clear trend in customer behavior.`, `Hide, obscure`],
+  ['Overlooked', 'ADJECTIVE', `Failed to be noticed or considered`, `The significance of her contributions was overlooked.`, `Recognized, acknowledged`],
+  ['Accentuate', 'VERB', `To emphasize or highlight something`, `The report accentuated the need for policy reform.`, `Downplay, de-emphasize`],
+  ['Counteract', 'VERB', `To act against something to reduce its effect`, `The drug counteracted the effects of the poison.`, `Support, promote`],
+  ['Insuperable', 'ADJECTIVE', `Impossible to overcome`, `The mountain presented an insuperable challenge.`, `Surmountable, conquerable`],
+  ['Irreproachable', 'ADJECTIVE', `Beyond criticism; faultless`, `Her irreproachable character earned her universal respect.`, `Flawed, reproachable`],
+];
 
-const SECTION_ICONS = {
-  Reading: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M4 5.5C4 4.67 4.67 4 5.5 4H11a1 1 0 0 1 1 1v15a1 1 0 0 0-1-1H5.5A1.5 1.5 0 0 1 4 17.5V5.5Z"/><path d="M20 5.5c0-.83-.67-1.5-1.5-1.5H13a1 1 0 0 0-1 1v15a1 1 0 0 1 1-1h5.5a1.5 1.5 0 0 0 1.5-1.5V5.5Z"/></svg>',
-  Listening: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="3" y="13" width="4" height="6" rx="1.5"/><rect x="17" y="13" width="4" height="6" rx="1.5"/></svg>',
-  Writing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z"/><path d="M14 7l3 3"/></svg>',
-  Speaking: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/><path d="M9 21h6"/></svg>',
-};
+const SAT_SET_2 = [
+  ['Pretentiousness', 'NOUN', `The quality of being showy or self-important`, `Her pretentiousness was apparent in the way she spoke.`, `Modesty, humility`],
+  ['Ineluctable', 'ADJECTIVE', `Impossible to avoid or resist`, `The consequences of his actions were ineluctable.`, `Avoidable, escapable`],
+  ['Equivocal', 'ADJECTIVE', `Open to more than one interpretation; ambiguous`, `Her reply was equivocal, leaving us uncertain of her intentions.`, `Clear, definite`],
+  ['Inconsequential', 'ADJECTIVE', `Not important or significant`, `The typo in the document was inconsequential to the final decision.`, `Significant, meaningful`],
+  ['Manifestations', 'NOUN', `Visible signs or expressions of something`, `The protests were manifestations of widespread discontent.`, `Concealments, absences`],
+  ['Obscure', 'ADJECTIVE', `Not clearly understood or easily expressed`, `The explanation was too obscure for most to understand.`, `Clear, evident`],
+  ['Rectify', 'VERB', `To correct or make something right`, `He tried to rectify his mistakes by apologizing.`, `Worsen, corrupt`],
+  ['Ameliorate', 'VERB', `To make a bad situation better`, `Efforts were made to ameliorate the living conditions in the area.`, `Worsen, exacerbate`],
+  ['Unattainable', 'ADJECTIVE', `Impossible to achieve`, `The peak was deemed unattainable without proper equipment.`, `Achievable, possible`],
+  ['Superfluous', 'ADJECTIVE', `Unnecessary, especially through being more than enough`, `He spent money on superfluous items he didn't need.`, `Necessary, essential`],
+  ['Amorphous', 'ADJECTIVE', `Without a clearly defined shape or form`, `The plan was amorphous and lacked clear goals.`, `Defined, structured`],
+  ['Misconstrued', 'ADJECTIVE', `Interpreted wrongly`, `His comments were misconstrued as criticism.`, `Understood, clarified`],
+  ['Prohibitive', 'ADJECTIVE', `Excessively expensive; forbidding`, `The cost of the tickets was prohibitive for most families.`, `Affordable, accessible`],
+  ['Stipulate', 'VERB', `To demand or specify as part of an agreement`, `The contract stipulates the terms of the agreement clearly.`, `Suggest, imply`],
+  ['Induce', 'VERB', `To bring about or give rise to`, `The drug can induce drowsiness in some patients.`, `Prevent, hinder`],
+  ['Engender', 'VERB', `To cause or give rise to a feeling or situation`, `Their actions engendered trust among the team members.`, `Suppress, discourage`],
+  ['Dispersed', 'ADJECTIVE', `Scattered across a wide area`, `The seeds were dispersed by the wind.`, `Concentrated, gathered`],
+  ['Supplant', 'VERB', `To take the place of something, often by force`, `The new product aims to supplant its predecessor.`, `Retain, preserve`],
+  ['Austere', 'ADJECTIVE', `Severe or strict in manner or appearance`, `Her austere demeanor was softened by her kindness.`, `Luxurious, indulgent`],
+  ['Equitable', 'ADJECTIVE', `Fair and impartial`, `The decision was equitable to all parties involved.`, `Unfair, biased`],
+  ['Augment', 'VERB', `To make something greater by adding to it`, `The team augmented their resources to meet the deadline.`, `Reduce, decrease`],
+  ['Conventional', 'ADJECTIVE', `Based on or in accordance with what is traditionally done`, `Her dress style was very conventional, fitting societal norms.`, `Unorthodox, unconventional`],
+  ['Idiosyncratic', 'ADJECTIVE', `Distinctive or peculiar to an individual`, `His idiosyncratic habits made him memorable.`, `Common, typical`],
+  ['Coalesce', 'VERB', `To come together to form one whole`, `The rivers coalesce into a large delta.`, `Separate, divide`],
+  ['Synopsis', 'NOUN', `A brief summary or general overview`, `The report provided a concise synopsis of the findings.`, `Expansion, elaboration`],
+];
 
-const PLAN_LABELS = { free: 'Free plan', pro: 'Pro plan', vip: 'VIP plan' };
+const SAT_SET_3 = [
+  ['Abundant', 'ADJECTIVE', `Existing in large quantities; plentiful`, `The harvest was abundant this year.`, `Scarce, insufficient`],
+  ['Coarseness', 'NOUN', `The quality of being rough or crude`, `The coarseness of his language offended the audience.`, `Refinement, delicacy`],
+  ['Orthodox', 'ADJECTIVE', `Adhering to traditional beliefs or practices`, `He follows orthodox religious practices.`, `Unorthodox, unconventional`],
+  ['Reverberate', 'VERB', `To echo or resound repeatedly`, `The sound of the explosion reverberated through the valley.`, `Muffle, silence`],
+  ['Municipal', 'ADJECTIVE', `Relating to a town or city and its governance`, `Municipal elections will be held next month.`, `Private, rural`],
+  ['Sway', 'VERB', `To move back and forth or to influence someone's opinion`, `The wind swayed the trees gently.`, `Steady, stabilize`],
+  ['Spurious', 'ADJECTIVE', `Not genuine or false`, `The spurious claims were dismissed by the court.`, `Authentic, genuine`],
+  ['Indulgently', 'OTHER', `In a manner showing excessive generosity or leniency`, `She indulgently allowed her child to stay up late.`, `Strictly, harshly`],
+  ['Behold', 'VERB', `To observe or see something`, `We beheld the stunning view from the mountain.`, `Ignore, overlook`, ['beheld']],
+  ['Satiate', 'VERB', `To satisfy fully or to excess`, `The buffet satiated everyone's hunger.`, `Deprive, starve`],
+  ['Convening', 'NOUN', `The act of gathering or assembling`, `The convening of the council was announced yesterday.`, `Dismissing, dispersing`],
+  ['Idealize', 'VERB', `To view something or someone as perfect`, `She tends to idealize her past experiences.`, `Criticize, devalue`],
+  ['Heterodox', 'ADJECTIVE', `Not conforming to established doctrines or beliefs`, `His heterodox views often spark debates.`, `Orthodox, conformist`],
+  ['Irrefutable', 'ADJECTIVE', `Impossible to deny or disprove`, `The evidence presented was irrefutable.`, `Refutable, questionable`],
+  ['Venerate', 'VERB', `To regard with great respect or reverence`, `They venerate the founder of their community.`, `Disrespect, despise`],
+  ['Arduous', 'ADJECTIVE', `Involving great effort or difficulty`, `Climbing the mountain was an arduous task.`, `Easy, effortless`],
+  ['Strenuous', 'ADJECTIVE', `Requiring much effort or energy`, `The strenuous workout left him exhausted.`, `Effortless, relaxed`],
+  ['Unpretentious', 'ADJECTIVE', `Not pretentious; simple and sincere`, `Her unpretentious manner made her approachable.`, `Pretentious, pompous`],
+  ['Satiable', 'ADJECTIVE', `Capable of being satisfied`, `He is easily satiable with small portions.`, `Insatiable, unquenchable`],
+  ['Incongruous', 'ADJECTIVE', `Not in harmony with surroundings or expectations`, `The modern decor was incongruous with the ancient building.`, `Harmonious, fitting`],
+  ['Recurrent', 'ADJECTIVE', `Occurring or appearing again periodically`, `The symptoms were recurrent every few weeks.`, `Irregular, singular`],
+  ['Imposing', 'ADJECTIVE', `Grand and impressive in appearance`, `The imposing mansion stood at the edge of the cliff.`, `Modest, unimpressive`],
+  ['Venerable', 'ADJECTIVE', `Commanding respect due to age or dignity`, `The venerable professor was admired by all.`, `Modern, dishonorable`],
+  ['Erratic', 'ADJECTIVE', `Unpredictable or inconsistent`, `His erratic behavior confused his colleagues.`, `Consistent, stable`],
+  ['Benevolent', 'ADJECTIVE', `Well-meaning and kind`, `Her benevolent actions benefited the entire village.`, `Malevolent, cruel`],
+];
 
-/* ---------------------------------------------------------------------- *
- * 2. STATE
- * ---------------------------------------------------------------------- */
-
-const state = {
-  materials: [],
-  user: null,
-  filters: { section: 'all', difficulty: 'all', query: '' },
-  isAdminAuthed: false,
-  editingMaterialId: null,
-  currentPage: 'dashboard',
-  openModalId: null,
-};
-
-/* ---------------------------------------------------------------------- *
- * 3. PERSISTENCE (localStorage acts as the mock database)
- * ---------------------------------------------------------------------- */
-
-function loadMaterials() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.MATERIALS);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (err) {
-    console.warn('Could not read materials from localStorage — using defaults.', err);
-  }
-  const seed = DEFAULT_MATERIALS.map((m) => ({ ...m, tags: [...m.tags] }));
-  localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(seed));
-  return seed;
-}
-
-function saveMaterials() {
-  try {
-    localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(state.materials));
-  } catch (err) {
-    console.error('Failed to save materials to localStorage.', err);
-    showToast('Changes could not be saved (storage error).', 'error');
-  }
-}
-
-function loadUser() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.USER);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.plan && parsed.scores) return parsed;
-    }
-  } catch (err) {
-    console.warn('Could not read user data from localStorage — using defaults.', err);
-  }
-  const seed = { ...DEFAULT_USER, scores: { ...DEFAULT_USER.scores } };
-  localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(seed));
-  return seed;
-}
-
-function saveUser() {
-  try {
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(state.user));
-  } catch (err) {
-    console.error('Failed to save user data to localStorage.', err);
-  }
-}
-
-/* ---------------------------------------------------------------------- *
- * 4. INIT & NAVIGATION
- * ---------------------------------------------------------------------- */
-
-function init() {
-  state.materials = loadMaterials();
-  state.user = loadUser();
-
-  renderScoreTracker();
-  renderMaterialsGrid();
-  renderAdminTable();
-  updatePlanBadge();
-  renderPricingButtons();
-  attachEventListeners();
-
-  // Play the signature highlighter-swipe once the dashboard first paints.
-  replayHighlightAnimation('overall-band-value');
-}
-
-function showPage(pageName) {
-  if (pageName === 'admin' && !state.isAdminAuthed) {
-    openAdminLoginModal();
-    return;
-  }
-  document.querySelectorAll('.page').forEach((el) => el.classList.add('hidden'));
-  const target = document.getElementById(`page-${pageName}`);
-  if (!target) return;
-  target.classList.remove('hidden');
-  state.currentPage = pageName;
-  updateNavActiveStates(pageName);
-  closeMobileMenu();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-
-  if (pageName === 'admin') renderAdminTable();
-  if (pageName === 'pricing') renderPricingButtons();
-  if (pageName === 'dashboard') replayHighlightAnimation('overall-band-value');
-}
-
-function updateNavActiveStates(pageName) {
-  document.querySelectorAll('[data-nav]').forEach((link) => {
-    link.classList.toggle('nav-link-active', link.dataset.nav === pageName);
+let __seq = 0;
+function buildWords(rows) {
+  return rows.map((r) => {
+    __seq += 1;
+    return {
+      id: `w${__seq}`,
+      word: r[0],
+      tag: r[1],
+      definition: r[2],
+      example: r[3],
+      antonym: r[4],
+      altForms: r[5] || [],
+    };
   });
 }
 
-function toggleMobileMenu() {
-  const menu = document.getElementById('mobile-menu');
-  const btn = document.querySelector('[data-action="toggle-mobile-menu"]');
-  const nowHidden = menu.classList.toggle('hidden');
-  if (btn) btn.setAttribute('aria-expanded', String(!nowHidden));
-}
+const PACKAGES = [
+  {
+    id: 'college-panda-400',
+    title: 'College Panda 400 Words',
+    description: `The classic 400-word list — high-frequency words that show up again and again on test day.`,
+    icon: GraduationCap,
+    sets: [
+      { id: 'cp-set-1', name: 'Set 1', words: buildWords(CP_SET_1), masteredSeed: 0, learningSeed: 4 },
+      { id: 'cp-set-2', name: 'Set 2', words: buildWords(CP_SET_2), masteredSeed: 0, learningSeed: 2 },
+      { id: 'cp-set-3', name: 'Set 3', words: buildWords(CP_SET_3), masteredSeed: 0, learningSeed: 2 },
+    ],
+  },
+  {
+    id: 'satashkent-real-exam',
+    title: 'SATashkent Words (Real Exam Words)',
+    description: `Pulled straight from real past exams — the words that actually show up when it counts.`,
+    icon: Target,
+    sets: [
+      { id: 'sat-set-1', name: 'Set 1', words: buildWords(SAT_SET_1), masteredSeed: 3, learningSeed: 22 },
+      { id: 'sat-set-2', name: 'Set 2', words: buildWords(SAT_SET_2), masteredSeed: 2, learningSeed: 6 },
+      { id: 'sat-set-3', name: 'Set 3', words: buildWords(SAT_SET_3), masteredSeed: 0, learningSeed: 2 },
+    ],
+  },
+];
 
-function closeMobileMenu() {
-  document.getElementById('mobile-menu').classList.add('hidden');
-  const btn = document.querySelector('[data-action="toggle-mobile-menu"]');
-  if (btn) btn.setAttribute('aria-expanded', 'false');
-}
+/* ------------------------------------------------------------------ */
+/*  UTILITIES                                                          */
+/* ------------------------------------------------------------------ */
 
-/* ---------------------------------------------------------------------- *
- * 5. SCORE TRACKER
- * ---------------------------------------------------------------------- */
-
-// IELTS rounds the average of the four skill scores to the nearest half
-// band, with exact .25 / .75 midpoints always rounding UP. Scaling by 2
-// and using Math.round (which rounds .5 up) reproduces that rule exactly,
-// including for the eighth-band fractions an odd number of half-scores
-// can produce (e.g. 8.0 + 7.0 + 6.0 + 6.5 = 27.5 → 6.875 → rounds to 7.0).
-function computeOverallBand(scores) {
-  const average = (scores.listening + scores.reading + scores.writing + scores.speaking) / 4;
-  return Math.round(average * 2) / 2;
-}
-
-function bandDescriptor(band) {
-  const rounded = Math.round(band);
-  const table = {
-    9: 'Expert user', 8: 'Very good user', 7: 'Good user',
-    6: 'Competent user', 5: 'Modest user', 4: 'Limited user',
-  };
-  return table[rounded] || (rounded > 9 ? table[9] : table[4]);
-}
-
-function renderScoreTracker() {
-  const { listening, reading, writing, speaking } = state.user.scores;
-  const overall = computeOverallBand(state.user.scores);
-
-  document.getElementById('overall-band-value').textContent = overall.toFixed(1);
-  document.getElementById('overall-band-descriptor').textContent =
-    `Band ${overall.toFixed(1)} \u00B7 ${bandDescriptor(overall)}`;
-
-  const skills = { listening, reading, writing, speaking };
-  Object.keys(skills).forEach((key) => {
-    const value = skills[key];
-    const valueEl = document.getElementById(`val-${key}`);
-    const barEl = document.getElementById(`bar-${key}`);
-    if (valueEl) valueEl.textContent = value.toFixed(1);
-    if (barEl) barEl.style.width = `${Math.min(100, (value / 9) * 100)}%`;
-  });
-}
-
-// Restarts a CSS animation on an element (used for the highlighter stroke)
-// by removing the animating class, forcing reflow, then re-adding it.
-function replayHighlightAnimation(elementId) {
-  const el = document.getElementById(elementId);
-  if (!el) return;
-  el.classList.remove('hl-stroke-animate');
-  void el.offsetWidth; // force reflow so the animation restarts
-  el.classList.add('hl-stroke-animate');
-}
-
-/* ---------------------------------------------------------------------- *
- * 6. MATERIAL GRID & FILTERING
- * ---------------------------------------------------------------------- */
-
-function isComingSoon(material) {
-  return material.section === 'Writing' || material.section === 'Speaking';
-}
-
-function getFilteredMaterials() {
-  const { section, difficulty, query } = state.filters;
-  const q = query.trim().toLowerCase();
-  return state.materials.filter((m) => {
-    const matchesSection = section === 'all' || m.section.toLowerCase() === section;
-    const matchesDifficulty = difficulty === 'all' || m.difficulty.toLowerCase() === difficulty;
-    const matchesQuery = !q || m.title.toLowerCase().includes(q) || m.tags.some((t) => t.toLowerCase().includes(q));
-    return matchesSection && matchesDifficulty && matchesQuery;
-  });
-}
-
-function tierBadgeHTML(material) {
-  if (isComingSoon(material)) {
-    return `<span class="${BADGE_BASE_CLASSES} bg-ink text-paper">${ICON_CLOCK}Soon</span>`;
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  if (material.tier === 'Free') {
-    return `<span class="${BADGE_BASE_CLASSES} border border-ink/15 bg-surface text-ink">Free</span>`;
-  }
-  const unlocked = state.user.plan !== 'free';
-  return `<span class="${BADGE_BASE_CLASSES} bg-marker text-ink">${unlocked ? ICON_UNLOCKED : ICON_LOCK}Premium</span>`;
+  return a;
 }
 
-function createMaterialCardHTML(material) {
-  const soon = isComingSoon(material);
-  const cardClasses = CARD_BASE_CLASSES + (soon ? ' ' + CARD_SOON_CLASSES : '');
-  const difficultyClasses = DIFFICULTY_CLASSES[material.difficulty] || DIFFICULTY_CLASSES.Medium;
-  const tagsPreview = material.tags.slice(0, 2).map((t) => humanizeTag(t)).join(' \u00B7 ');
-
-  return `
-    <article id="material-${material.id}" class="${cardClasses}" data-action="open-material" data-id="${material.id}" role="button" tabindex="0" aria-label="${escapeHTML(material.title)}">
-      <div class="flex items-start justify-between gap-2 p-5 pb-3">
-        <span class="flex items-center gap-1.5 font-display text-xs font-bold uppercase tracking-wide text-ink/50">
-          ${SECTION_ICONS[material.section] || ''} ${escapeHTML(material.section)}
-        </span>
-        ${tierBadgeHTML(material)}
-      </div>
-      <div class="flex-1 px-5 pb-4">
-        <h3 class="font-display text-base font-bold leading-snug text-ink">${escapeHTML(material.title)}</h3>
-        <p class="mt-1.5 line-clamp-2 font-sans text-sm text-ink/65">${escapeHTML(material.description || '')}</p>
-        ${tagsPreview ? `<p class="mt-2 font-sans text-xs text-ink/45">${escapeHTML(tagsPreview)}</p>` : ''}
-      </div>
-      <div class="flex items-center justify-between border-t border-line px-5 py-3">
-        <span class="${difficultyClasses}">${escapeHTML(material.difficulty)}</span>
-      </div>
-    </article>
-  `;
+function formatTime(totalSeconds) {
+  const s = Math.max(0, totalSeconds);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, '0')}`;
 }
 
-function renderMaterialsGrid() {
-  const filtered = getFilteredMaterials();
-  const grid = document.getElementById('materials-grid');
-  const empty = document.getElementById('materials-empty');
-  const countEl = document.getElementById('filter-results-count');
-  const total = state.materials.length;
-
-  countEl.textContent = filtered.length === total
-    ? 'Showing all materials'
-    : `Showing ${filtered.length} of ${total} materials`;
-
-  if (filtered.length === 0) {
-    grid.innerHTML = '';
-    grid.classList.add('hidden');
-    empty.classList.remove('hidden');
-    empty.classList.add('flex');
-    return;
-  }
-  empty.classList.add('hidden');
-  empty.classList.remove('flex');
-  grid.classList.remove('hidden');
-  grid.innerHTML = filtered.map(createMaterialCardHTML).join('');
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function handleFilterChange() {
-  state.filters.section = document.getElementById('filter-section').value;
-  state.filters.difficulty = document.getElementById('filter-difficulty').value;
-  state.filters.query = document.getElementById('filter-search').value;
-  renderMaterialsGrid();
+function blankOutWord(example, word, altForms) {
+  const base = word.replace(/\s*\(.*?\)\s*/g, '').trim();
+  const alternatives = [base, ...(altForms || [])].map(escapeRegExp);
+  const pattern = new RegExp(`\\b(?:${alternatives.join('|')})\\w*`, 'gi');
+  return example.replace(pattern, '______');
 }
 
-function clearFilters() {
-  state.filters = { section: 'all', difficulty: 'all', query: '' };
-  syncFilterControlsFromState();
-  renderMaterialsGrid();
-}
-
-function syncFilterControlsFromState() {
-  document.getElementById('filter-section').value = state.filters.section;
-  document.getElementById('filter-difficulty').value = state.filters.difficulty;
-  document.getElementById('filter-search').value = state.filters.query;
-}
-
-/* ---------------------------------------------------------------------- *
- * 7. MATERIAL DETAIL / PAYWALL
- * ---------------------------------------------------------------------- */
-
-function handleMaterialCardClick(id) {
-  const material = state.materials.find((m) => m.id === id);
-  if (!material) return;
-
-  if (isComingSoon(material)) {
-    showToast(`${material.section} practice launches soon.`, 'info');
-    return;
-  }
-  if (material.tier === 'Premium' && state.user.plan === 'free') {
-    openPaywallModal(material);
-    return;
-  }
-  openMaterialModal(material);
-}
-
-function openMaterialModal(material) {
-  const difficultyClasses = DIFFICULTY_CLASSES[material.difficulty] || DIFFICULTY_CLASSES.Medium;
-  const tagsHTML = material.tags.map((t) =>
-    `<span class="${BADGE_BASE_CLASSES} border border-ink/15 bg-surface text-ink/70">${escapeHTML(humanizeTag(t))}</span>`
-  ).join('');
-
-  document.getElementById('modal-material-content').innerHTML = `
-    <div class="flex items-center gap-2 pr-8">
-      <span class="flex items-center gap-1.5 font-display text-xs font-bold uppercase tracking-wide text-ink/50">
-        ${SECTION_ICONS[material.section] || ''} ${escapeHTML(material.section)}
-      </span>
-      ${tierBadgeHTML(material)}
-    </div>
-    <h2 class="mt-3 font-display text-xl font-bold text-ink">${escapeHTML(material.title)}</h2>
-    <p class="mt-2 font-sans text-sm text-ink/70">${escapeHTML(material.description || '')}</p>
-    <div class="mt-4 flex flex-wrap items-center gap-2">
-      <span class="${difficultyClasses}">${escapeHTML(material.difficulty)}</span>
-      ${tagsHTML}
-    </div>
-    <button type="button" data-action="start-practice" data-id="${material.id}" class="btn-primary mt-6 w-full">Start practice</button>
-  `;
-  openModal('modal-material');
-}
-
-function openPaywallModal(material) {
-  const otherPremiumCount = state.materials.filter((m) => m.tier === 'Premium' && !isComingSoon(m) && m.id !== material.id).length;
-  document.getElementById('paywall-modal-body').textContent =
-    `"${material.title}" is part of our premium library. Choose Pro or VIP to unlock it${otherPremiumCount > 0 ? ` and ${otherPremiumCount} other premium materials` : ''}.`;
-  openModal('modal-paywall');
-}
-
-/* ---------------------------------------------------------------------- *
- * 8. AI ANALYZER
- * ---------------------------------------------------------------------- */
-
-function openAIAnalyzerModal() {
-  setAnalyzerModalState('intro');
-  openModal('modal-ai-analyzer');
-}
-
-function setAnalyzerModalState(stateName) {
-  ['intro', 'loading', 'result'].forEach((name) => {
-    const el = document.getElementById(`analyzer-state-${name}`);
-    if (!el) return;
-    el.classList.toggle('hidden', name !== stateName);
-    el.classList.toggle('flex', name === 'loading' && name === stateName);
-  });
-}
-
-function runAIAnalysis() {
-  setAnalyzerModalState('loading');
-  setTimeout(() => {
-    const weakPoint = WEAK_POINTS[Math.floor(Math.random() * WEAK_POINTS.length)];
-    const recommended = state.materials
-      .filter((m) => !isComingSoon(m) && m.tags.includes(weakPoint.tag))
-      .slice(0, 3);
-    renderAnalysisResult(weakPoint, recommended);
-    setAnalyzerModalState('result');
-    replayHighlightAnimation('analyzer-weak-label');
-  }, 1100);
-}
-
-function renderAnalysisResult(weakPoint, recommended) {
-  document.getElementById('analyzer-weak-label').textContent = weakPoint.label;
-  document.getElementById('analyzer-weak-section').textContent = `${weakPoint.section} skill`;
-  document.getElementById('analyzer-weak-tip').textContent = weakPoint.tip;
-
-  const list = document.getElementById('analyzer-recommendations');
-  if (recommended.length === 0) {
-    list.innerHTML = `<p class="font-sans text-sm text-ink/55">No matching materials yet — check back after an admin adds some.</p>`;
-    return;
-  }
-  list.innerHTML = recommended.map((m) => `
-    <div class="flex items-center justify-between gap-3 rounded-xl border border-line bg-paper/40 px-4 py-3">
-      <div class="min-w-0">
-        <p class="truncate font-display text-sm font-bold text-ink">${escapeHTML(m.title)}</p>
-        <p class="mt-0.5 font-sans text-xs text-ink/55">${escapeHTML(m.section)} \u00B7 ${escapeHTML(m.difficulty)} \u00B7 ${escapeHTML(m.tier)}</p>
-      </div>
-      <button type="button" data-action="view-recommended" data-id="${m.id}" class="btn-secondary shrink-0 !px-3 !py-1.5 !text-xs">View</button>
-    </div>
-  `).join('');
-}
-
-function viewRecommendedMaterial(id) {
-  const material = state.materials.find((m) => m.id === id);
-  closeAllModals();
-  showPage('dashboard');
-  if (material) {
-    state.filters = { section: material.section.toLowerCase(), difficulty: 'all', query: '' };
-    syncFilterControlsFromState();
-    renderMaterialsGrid();
-    setTimeout(() => highlightMaterialCard(id), 60);
-  }
-}
-
-function highlightMaterialCard(id) {
-  const card = document.getElementById(`material-${id}`);
-  if (!card) return;
-  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  card.classList.add('ring-4', 'ring-marker');
-  setTimeout(() => card.classList.remove('ring-4', 'ring-marker'), 2200);
-}
-
-/* ---------------------------------------------------------------------- *
- * 9. PRICING / SUBSCRIPTIONS
- * ---------------------------------------------------------------------- */
-
-function subscribeToPlan(planId) {
-  if (!PLAN_LABELS[planId] || state.user.plan === planId) return;
-  state.user.plan = planId;
-  saveUser();
-  updatePlanBadge();
-  renderPricingButtons();
-  renderMaterialsGrid(); // premium badges reflect the new unlocked state
-  showToast(`${PLAN_LABELS[planId]} selected.`, 'success');
-}
-
-function updatePlanBadge() {
-  const label = PLAN_LABELS[state.user.plan] || PLAN_LABELS.free;
-  document.getElementById('plan-badge').textContent = label;
-  document.getElementById('plan-badge-mobile').textContent = label;
-}
-
-function renderPricingButtons() {
-  document.querySelectorAll('[data-plan]').forEach((btn) => {
-    const plan = btn.dataset.plan;
-    const isCurrent = state.user.plan === plan;
-    btn.disabled = isCurrent;
-    btn.textContent = isCurrent ? 'Current plan' : btn.dataset.defaultLabel;
-    btn.classList.toggle('opacity-60', isCurrent);
-    btn.classList.toggle('cursor-not-allowed', isCurrent);
-  });
-}
-
-/* ---------------------------------------------------------------------- *
- * 10. ADMIN (auth + CRUD)
- * ---------------------------------------------------------------------- */
-
-function openAdminLoginModal() {
-  const form = document.getElementById('admin-login-form');
-  form.reset();
-  document.getElementById('admin-login-error').classList.add('hidden');
-  openModal('modal-admin-login');
-  setTimeout(() => document.getElementById('admin-password-input')?.focus(), 50);
-}
-
-function handleAdminLoginSubmit(event) {
-  event.preventDefault();
-  const input = document.getElementById('admin-password-input');
-  if (input.value === ADMIN_PASSWORD) {
-    state.isAdminAuthed = true;
-    closeModal('modal-admin-login');
-    showPage('admin');
-    showToast('Signed in as admin.', 'success');
-  } else {
-    document.getElementById('admin-login-error').classList.remove('hidden');
-    input.value = '';
-    input.focus();
-  }
-}
-
-function adminLogout() {
-  state.isAdminAuthed = false;
-  cancelEditMaterial();
-  showPage('dashboard');
-  showToast('Signed out of admin.', 'info');
-}
-
-function renderAdminTable() {
-  const tbody = document.getElementById('admin-materials-tbody');
-  if (!tbody) return;
-
-  if (state.materials.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="px-5 py-8 text-center text-ink/50">No materials yet — add one above.</td></tr>`;
-  } else {
-    tbody.innerHTML = state.materials.map((m) => `
-      <tr class="border-b border-line last:border-0">
-        <td class="max-w-xs truncate px-5 py-3 font-semibold text-ink">${escapeHTML(m.title)}</td>
-        <td class="px-5 py-3">${escapeHTML(m.section)}</td>
-        <td class="px-5 py-3">${escapeHTML(m.difficulty)}</td>
-        <td class="px-5 py-3">
-          <span class="${BADGE_BASE_CLASSES} ${m.tier === 'Premium' ? 'bg-marker text-ink' : 'border border-ink/15 bg-surface text-ink'}">${escapeHTML(m.tier)}</span>
-        </td>
-        <td class="max-w-[16rem] truncate px-5 py-3 text-ink/55">${escapeHTML(m.tags.join(', '))}</td>
-        <td class="px-5 py-3 text-right">
-          <button type="button" data-action="edit-material" data-id="${m.id}" class="font-display text-xs font-bold text-ink/70 hover:text-ink">Edit</button>
-          <span class="mx-1.5 text-ink/20">|</span>
-          <button type="button" data-action="delete-material" data-id="${m.id}" class="font-display text-xs font-bold text-rose-600 hover:text-rose-700">Delete</button>
-        </td>
-      </tr>
-    `).join('');
-  }
-  document.getElementById('admin-materials-count').textContent = `${state.materials.length} total material${state.materials.length === 1 ? '' : 's'}`;
-}
-
-function handleAdminFormSubmit(event) {
-  event.preventDefault();
-  const form = event.target;
-  const fd = new FormData(form);
-
-  const title = (fd.get('title') || '').toString().trim();
-  const section = fd.get('section');
-  const difficulty = fd.get('difficulty');
-  const tier = fd.get('tier');
-  const description = (fd.get('description') || '').toString().trim();
-  const tags = (fd.get('tags') || '').toString()
-    .split(',')
-    .map((t) => t.trim().toLowerCase().replace(/\s+/g, '-'))
-    .filter(Boolean);
-
-  if (!title || !section || !difficulty || !tier) {
-    showToast('Fill in the title, section, difficulty, and access fields.', 'error');
-    return;
-  }
-
-  if (state.editingMaterialId) {
-    const idx = state.materials.findIndex((m) => m.id === state.editingMaterialId);
-    if (idx !== -1) {
-      state.materials[idx] = { ...state.materials[idx], title, section, difficulty, tier, description, tags };
-      showToast('Material updated.', 'success');
-    }
-  } else {
-    state.materials.push({ id: generateId(), title, section, difficulty, tier, description, tags });
-    showToast('Material added.', 'success');
-  }
-
-  saveMaterials();
-  renderAdminTable();
-  renderMaterialsGrid();
-  cancelEditMaterial();
-}
-
-function startEditMaterial(id) {
-  const material = state.materials.find((m) => m.id === id);
-  if (!material) return;
-
-  state.editingMaterialId = id;
-  const form = document.getElementById('admin-material-form');
-  form.title.value = material.title;
-  form.section.value = material.section;
-  form.difficulty.value = material.difficulty;
-  form.description.value = material.description || '';
-  form.tags.value = material.tags.join(', ');
-  const tierInput = form.querySelector(`input[name="tier"][value="${material.tier}"]`);
-  if (tierInput) tierInput.checked = true;
-
-  document.getElementById('admin-form-heading').textContent = `Edit material: ${material.title}`;
-  document.getElementById('admin-form-submit-btn').textContent = 'Save changes';
-  document.getElementById('admin-form-cancel-btn').classList.remove('hidden');
-  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function cancelEditMaterial() {
-  state.editingMaterialId = null;
-  const form = document.getElementById('admin-material-form');
-  if (form) form.reset();
-  document.getElementById('admin-form-heading').textContent = 'Add new material';
-  document.getElementById('admin-form-submit-btn').textContent = 'Add material';
-  document.getElementById('admin-form-cancel-btn').classList.add('hidden');
-}
-
-function deleteMaterial(id) {
-  const material = state.materials.find((m) => m.id === id);
-  if (!material) return;
-  const confirmed = window.confirm(`Delete "${material.title}"? This can't be undone.`);
-  if (!confirmed) return;
-
-  state.materials = state.materials.filter((m) => m.id !== id);
-  saveMaterials();
-  renderAdminTable();
-  renderMaterialsGrid();
-  showToast('Material deleted.', 'success');
-  if (state.editingMaterialId === id) cancelEditMaterial();
-}
-
-function resetDemoData() {
-  const confirmed = window.confirm('Reset materials and your plan back to the defaults? This can\u2019t be undone.');
-  if (!confirmed) return;
-
-  localStorage.removeItem(STORAGE_KEYS.MATERIALS);
-  localStorage.removeItem(STORAGE_KEYS.USER);
-  state.materials = loadMaterials();
-  state.user = loadUser();
-  state.filters = { section: 'all', difficulty: 'all', query: '' };
-  cancelEditMaterial();
-
-  syncFilterControlsFromState();
-  renderScoreTracker();
-  renderMaterialsGrid();
-  renderAdminTable();
-  updatePlanBadge();
-  renderPricingButtons();
-  showToast('Demo data reset.', 'success');
-}
-
-/* ---------------------------------------------------------------------- *
- * 11. MODAL / TOAST HELPERS
- * ---------------------------------------------------------------------- */
-
-function openModal(modalId) {
-  const modal = document.getElementById(modalId);
-  if (!modal) return;
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-  document.body.classList.add('overflow-hidden');
-  state.openModalId = modalId;
-}
-
-function closeModal(modalId) {
-  const modal = document.getElementById(modalId);
-  if (!modal) return;
-  modal.classList.add('hidden');
-  modal.classList.remove('flex');
-  document.body.classList.remove('overflow-hidden');
-  if (state.openModalId === modalId) state.openModalId = null;
-}
-
-function closeAllModals() {
-  document.querySelectorAll('[data-modal]').forEach((modal) => {
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-  });
-  document.body.classList.remove('overflow-hidden');
-  state.openModalId = null;
-}
-
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toast-container');
-  if (!container) return;
-  const colors = { success: 'bg-emerald-600', error: 'bg-rose-600', info: 'bg-ink' };
-  const toast = document.createElement('div');
-  toast.className = `toast pointer-events-auto mb-2 max-w-xs cursor-pointer rounded-xl px-4 py-3 font-sans text-sm font-semibold text-paper shadow-lg animate-slideUp ${colors[type] || colors.info}`;
-  toast.textContent = message;
-  toast.addEventListener('click', () => toast.remove());
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.transition = 'opacity 300ms, transform 300ms';
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(6px)';
-    setTimeout(() => toast.remove(), 320);
-  }, 3200);
-}
-
-/* ---------------------------------------------------------------------- *
- * 12. EVENT WIRING
- * ---------------------------------------------------------------------- */
-
-function attachEventListeners() {
-  document.addEventListener('click', handleDelegatedClick);
-  document.addEventListener('keydown', handleGlobalKeydown);
-
-  document.querySelectorAll('[data-modal]').forEach((modal) => {
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal(modal.id);
+function buildInitialProgress(packages) {
+  const progress = {};
+  packages.forEach((pkg) => {
+    pkg.sets.forEach((set) => {
+      set.words.forEach((w, i) => {
+        if (i < set.masteredSeed) progress[w.id] = 'mastered';
+        else if (i < set.masteredSeed + set.learningSeed) progress[w.id] = 'learning';
+        else progress[w.id] = 'new';
+      });
     });
   });
-
-  document.getElementById('filter-section').addEventListener('change', handleFilterChange);
-  document.getElementById('filter-difficulty').addEventListener('change', handleFilterChange);
-  document.getElementById('filter-search').addEventListener('input', handleFilterChange);
-
-  document.getElementById('admin-login-form').addEventListener('submit', handleAdminLoginSubmit);
-  document.getElementById('admin-material-form').addEventListener('submit', handleAdminFormSubmit);
+  return progress;
 }
 
-function handleDelegatedClick(event) {
-  const el = event.target.closest('[data-action]');
-  if (!el) return;
-  const action = el.dataset.action;
-  const id = el.dataset.id;
+function decorateSet(set, wordProgress) {
+  const words = set.words.map((w) => ({ ...w, status: wordProgress[w.id] || 'new' }));
+  let mastered = 0, learning = 0, fresh = 0;
+  words.forEach((w) => {
+    if (w.status === 'mastered') mastered += 1;
+    else if (w.status === 'learning') learning += 1;
+    else fresh += 1;
+  });
+  return { ...set, words, mastered, learning, fresh, complete: fresh === 0 };
+}
 
-  switch (action) {
-    case 'show-page':
-      showPage(el.dataset.page);
-      break;
-    case 'toggle-mobile-menu':
-      toggleMobileMenu();
-      break;
-    case 'open-material':
-      handleMaterialCardClick(id);
-      break;
-    case 'start-practice': {
-      const material = state.materials.find((m) => m.id === id);
-      closeModal('modal-material');
-      showToast(material ? `Practice for "${material.title}" isn\u2019t wired up yet — this is a UI demo.` : 'Practice isn\u2019t wired up yet.', 'info');
-      break;
+function decoratePackage(pkg, wordProgress) {
+  const sets = pkg.sets.map((s) => decorateSet(s, wordProgress));
+  const mastered = sets.reduce((a, s) => a + s.mastered, 0);
+  const learning = sets.reduce((a, s) => a + s.learning, 0);
+  const fresh = sets.reduce((a, s) => a + s.fresh, 0);
+  const totalWords = mastered + learning + fresh;
+  return {
+    ...pkg,
+    sets,
+    mastered,
+    learning,
+    fresh,
+    totalWords,
+    totalSets: sets.length,
+    percent: totalWords ? (mastered / totalWords) * 100 : 0,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  SMALL UI ATOMS                                                      */
+/* ------------------------------------------------------------------ */
+
+function CircularRing({ percent, size = 56, stroke = 6 }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.min(100, Math.max(0, percent));
+  const offset = c - (clamped / 100) * c;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="#e2e8f0" strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="#10b981"
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.8s ease-out' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-xs font-bold text-slate-700">{Math.round(clamped)}%</span>
+      </div>
+    </div>
+  );
+}
+
+function LegendDot({ color, label, count }) {
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-slate-500">
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+      {label} <span className="font-semibold text-slate-600">{count}</span>
+    </span>
+  );
+}
+
+function SegmentedBar({ mastered, learning, fresh, showLegend = true, height = 8 }) {
+  const total = mastered + learning + fresh || 1;
+  const pm = (mastered / total) * 100;
+  const pl = (learning / total) * 100;
+  const pf = (fresh / total) * 100;
+  return (
+    <div>
+      <div className="flex w-full overflow-hidden rounded-full bg-slate-100" style={{ height }}>
+        {mastered > 0 && <div style={{ width: `${pm}%`, background: '#10b981', transition: 'width 0.6s ease-out' }} />}
+        {learning > 0 && <div style={{ width: `${pl}%`, background: '#f59e0b', transition: 'width 0.6s ease-out' }} />}
+        {fresh > 0 && <div style={{ width: `${pf}%`, background: '#cbd5e1', transition: 'width 0.6s ease-out' }} />}
+      </div>
+      {showLegend && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <LegendDot color="#10b981" label="Mastered" count={mastered} />
+          <LegendDot color="#f59e0b" label="Learning" count={learning} />
+          <LegendDot color="#cbd5e1" label="New" count={fresh} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TagPill({ tag }) {
+  return (
+    <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-slate-500">
+      {tag}
+    </span>
+  );
+}
+
+function BackHeader({ onBack, eyebrow, title, subtitle }) {
+  return (
+    <div className="mb-7">
+      <button
+        onClick={onBack}
+        className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded"
+      >
+        <ChevronLeft className="h-4 w-4" /> Back
+      </button>
+      {eyebrow && <p className="text-xs font-bold uppercase tracking-wide text-blue-600">{eyebrow}</p>}
+      <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
+      {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+    </div>
+  );
+}
+
+function ModeHeader({ onBack, title, progress, extra }) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <h1 className="text-lg font-bold text-slate-900">{title}</h1>
+      </div>
+      <div className="flex items-center gap-2">
+        {extra}
+        {progress && (
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">{progress}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModeCompletion({ title, stat, onBack, onRestart }) {
+  return (
+    <div className="mx-auto flex max-w-md flex-col items-center rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+        <Trophy className="h-6 w-6" />
+      </div>
+      <h2 className="mt-4 text-2xl font-bold text-slate-900">{title}</h2>
+      <p className="mt-1 text-slate-500">{stat}</p>
+      <div className="mt-7 flex w-full gap-3">
+        <button
+          onClick={onBack}
+          className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+        >
+          Back to set
+        </button>
+        <button
+          onClick={onRestart}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+        >
+          <RotateCcw className="h-4 w-4" /> Restart
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const STATUS_META = {
+  mastered: { label: 'Mastered', color: '#10b981' },
+  learning: { label: 'Learning', color: '#f59e0b' },
+  new: { label: 'New', color: '#94a3b8' },
+};
+
+function StatusRadio({ status, onChange }) {
+  return (
+    <div className="flex items-center gap-3">
+      {Object.keys(STATUS_META).map((key) => {
+        const meta = STATUS_META[key];
+        const active = status === key;
+        return (
+          <button
+            key={key}
+            onClick={() => onChange(key)}
+            className="flex items-center gap-1.5 text-xs font-semibold focus-visible:outline-none"
+            style={{ color: active ? meta.color : '#cbd5e1' }}
+          >
+            <span
+              className="flex h-3.5 w-3.5 items-center justify-center rounded-full border-2"
+              style={{ borderColor: active ? meta.color : '#cbd5e1' }}
+            >
+              {active && <span className="h-1.5 w-1.5 rounded-full" style={{ background: meta.color }} />}
+            </span>
+            <span className={active ? 'inline' : 'hidden sm:inline'}>{meta.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  DASHBOARD                                                           */
+/* ------------------------------------------------------------------ */
+
+function PackageCard({ pkg, onClick }) {
+  const Icon = pkg.icon;
+  return (
+    <button
+      onClick={onClick}
+      className="group flex flex-col rounded-3xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+            <Icon className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold leading-snug text-slate-900">{pkg.title}</h2>
+            <p className="mt-0.5 text-sm text-slate-500">{pkg.description}</p>
+          </div>
+        </div>
+        <CircularRing percent={pkg.percent} size={56} stroke={6} />
+      </div>
+      <div className="mt-5">
+        <SegmentedBar mastered={pkg.mastered} learning={pkg.learning} fresh={pkg.fresh} />
+      </div>
+      <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-4 text-xs font-semibold text-slate-500">
+        <span>{pkg.totalSets} sets</span>
+        <span className="h-1 w-1 rounded-full bg-slate-300" />
+        <span>{pkg.totalWords} words</span>
+        <span className="ml-auto flex items-center gap-1 text-blue-600 opacity-0 transition group-hover:opacity-100">
+          Open <ArrowRight className="h-3.5 w-3.5" />
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function Dashboard({ packages, onOpen }) {
+  return (
+    <div>
+      <header className="mb-8">
+        <div className="flex items-center gap-2 text-sm font-bold text-blue-600">
+          <BookOpen className="h-4 w-4" /> Vocabook
+        </div>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Your vocabulary packages</h1>
+        <p className="mt-2 max-w-xl text-slate-500">
+          Real words pulled straight from @satashkent's Vocabook — pick a package and start learning.
+        </p>
+      </header>
+      <div className="grid gap-5 sm:grid-cols-2">
+        {packages.map((pkg) => (
+          <PackageCard key={pkg.id} pkg={pkg} onClick={() => onOpen(pkg.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  SET LIST                                                            */
+/* ------------------------------------------------------------------ */
+
+function SetCard({ set, onClick }) {
+  return (
+    <div className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="text-base font-bold text-slate-900">{set.name}</h3>
+          <p className="text-xs font-medium text-slate-500">{set.words.length} words</p>
+        </div>
+        {set.complete && (
+          <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-600">
+            <Check className="h-3 w-3" /> Done
+          </span>
+        )}
+      </div>
+      <div className="mt-4">
+        <SegmentedBar mastered={set.mastered} learning={set.learning} fresh={set.fresh} showLegend={false} height={6} />
+      </div>
+      <button
+        onClick={onClick}
+        className={
+          'mt-4 rounded-xl py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ' +
+          (set.complete
+            ? 'border border-slate-200 bg-white text-slate-900 hover:bg-slate-50'
+            : 'bg-blue-600 text-white hover:bg-blue-700')
+        }
+      >
+        {set.complete ? 'Practice again' : 'Practice'}
+      </button>
+    </div>
+  );
+}
+
+function SetListView({ pkg, onBack, onOpenSet }) {
+  return (
+    <div>
+      <BackHeader onBack={onBack} eyebrow="Package" title={pkg.title} subtitle={`${pkg.totalSets} sets · ${pkg.totalWords} words`} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {pkg.sets.map((set) => (
+          <SetCard key={set.id} set={set} onClick={() => onOpenSet(set.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  SET DETAILS                                                         */
+/* ------------------------------------------------------------------ */
+
+const MODES = [
+  { key: 'flashcard', title: 'Flashcard', desc: 'Flip through cards and mark what you know.', icon: Layers },
+  { key: 'matching', title: 'Matching', desc: 'Pair up words with their definitions.', icon: Shuffle },
+  { key: 'speed', title: 'Speed', desc: 'Race the clock, one word at a time.', icon: Zap },
+  { key: 'test', title: 'Test', desc: 'Words in context — pick the right fit.', icon: ClipboardCheck },
+];
+
+function WordRow({ word, onUpdateStatus, isLast }) {
+  return (
+    <div className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-6 ${isLast ? '' : 'border-b border-slate-100'}`}>
+      <div className="sm:w-56 sm:shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-slate-900">{word.word}</span>
+          <TagPill tag={word.tag} />
+        </div>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-slate-600">{word.definition}</p>
+        <p className="mt-1 text-sm italic text-slate-400">&ldquo;{word.example}&rdquo;</p>
+        <p className="mt-1 text-xs text-slate-400">Opposite: {word.antonym}</p>
+      </div>
+      <div className="sm:w-44 sm:shrink-0">
+        <StatusRadio status={word.status} onChange={(s) => onUpdateStatus(word.id, s)} />
+      </div>
+    </div>
+  );
+}
+
+function SetDetailsView({ pkg, set, onBack, onStartMode, onUpdateStatus }) {
+  return (
+    <div>
+      <BackHeader onBack={onBack} eyebrow={pkg.title} title={set.name} subtitle={`${set.words.length} words · ${set.mastered} mastered`} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {MODES.map((mode) => (
+          <button
+            key={mode.key}
+            onClick={() => onStartMode(mode.key)}
+            className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <mode.icon className="h-4 w-4" />
+            </div>
+            <h3 className="mt-3 text-sm font-bold text-slate-900">{mode.title}</h3>
+            <p className="mt-1 text-xs leading-snug text-slate-500">{mode.desc}</p>
+            <span className="mt-3 flex items-center gap-1 text-xs font-bold text-blue-600">
+              Start <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-10">
+        <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-400">Learning Time</h2>
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          {set.words.map((w, i) => (
+            <WordRow key={w.id} word={w} onUpdateStatus={onUpdateStatus} isLast={i === set.words.length - 1} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  FLASHCARD MODE                                                       */
+/* ------------------------------------------------------------------ */
+
+function FlashcardMode({ set, onBack, onUpdateStatus }) {
+  const [sessionKey, setSessionKey] = useState(0);
+  const words = useMemo(() => shuffle(set.words), [set.words, sessionKey]);
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [results, setResults] = useState({});
+
+  const done = index >= words.length;
+  const current = !done ? words[index] : null;
+
+  const flip = useCallback(() => setFlipped((f) => !f), []);
+
+  const answer = useCallback(
+    (isCorrect) => {
+      if (!current) return;
+      onUpdateStatus(current.id, isCorrect ? 'mastered' : 'learning');
+      setResults((prev) => ({ ...prev, [current.id]: isCorrect ? 'correct' : 'wrong' }));
+      setFlipped(false);
+      setIndex((i) => i + 1);
+    },
+    [current, onUpdateStatus]
+  );
+
+  useEffect(() => {
+    function onKey(e) {
+      if (done) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        flip();
+      } else if (e.key === '1') {
+        answer(false);
+      } else if (e.key === '2') {
+        answer(true);
+      }
     }
-    case 'goto-pricing':
-      closeAllModals();
-      showPage('pricing');
-      break;
-    case 'close-modal': {
-      const modal = el.closest('[data-modal]');
-      if (modal) closeModal(modal.id);
-      break;
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [done, flip, answer]);
+
+  function restart() {
+    setSessionKey((k) => k + 1);
+    setIndex(0);
+    setFlipped(false);
+    setResults({});
+  }
+
+  if (done) {
+    const correctCount = Object.values(results).filter((r) => r === 'correct').length;
+    return (
+      <ModeCompletion
+        title="Set complete!"
+        stat={`${correctCount} / ${words.length} correct`}
+        onBack={onBack}
+        onRestart={restart}
+      />
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-lg">
+      <ModeHeader onBack={onBack} title="Flashcard" progress={`${index + 1} / ${words.length}`} />
+
+      <div style={{ perspective: 1600 }} className="mt-8">
+        <div
+          onClick={flip}
+          className="relative mx-auto h-80 w-full cursor-pointer select-none"
+          style={{
+            transformStyle: 'preserve-3d',
+            transition: 'transform 0.55s cubic-bezier(0.4,0.15,0.2,1)',
+            transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+          }}
+        >
+          <div
+            style={{ backfaceVisibility: 'hidden' }}
+            className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-md"
+          >
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Word</span>
+            <h2 className="mt-4 text-4xl font-bold text-slate-900">{current.word}</h2>
+            <div className="mt-3">
+              <TagPill tag={current.tag} />
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                flip();
+              }}
+              className="mt-8 rounded-full border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-50"
+            >
+              Flip for definition
+            </button>
+          </div>
+          <div
+            style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+            className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-md"
+          >
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Definition</span>
+            <p className="mt-4 text-xl font-semibold leading-snug text-slate-900">{current.definition}</p>
+            <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-3">
+              <p className="text-sm italic text-slate-500">&ldquo;{current.example}&rdquo;</p>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">Opposite: {current.antonym}</p>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                flip();
+              }}
+              className="mt-5 rounded-full border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-50"
+            >
+              Flip for word
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 grid grid-cols-2 gap-4">
+        <button
+          onClick={() => answer(false)}
+          className="flex items-center justify-center gap-2 rounded-2xl bg-red-50 py-4 text-base font-bold text-red-600 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2"
+        >
+          <X className="h-5 w-5" /> Wrong
+        </button>
+        <button
+          onClick={() => answer(true)}
+          className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 py-4 text-base font-bold text-emerald-600 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
+        >
+          <Check className="h-5 w-5" /> Correct
+        </button>
+      </div>
+      <p className="mt-4 text-center text-xs text-slate-400">
+        <kbd className="rounded border border-slate-200 px-1.5 py-0.5 font-sans">Space</kbd> flip ·{' '}
+        <kbd className="rounded border border-slate-200 px-1.5 py-0.5 font-sans">1</kbd> wrong ·{' '}
+        <kbd className="rounded border border-slate-200 px-1.5 py-0.5 font-sans">2</kbd> correct
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  MATCHING MODE                                                        */
+/* ------------------------------------------------------------------ */
+
+function MatchingMode({ set, onBack }) {
+  const [sessionKey, setSessionKey] = useState(0);
+  const rounds = useMemo(() => {
+    const ids = shuffle(set.words.map((w) => w.id)).slice(0, 24);
+    return [0, 1, 2, 3].map((i) => ids.slice(i * 6, i * 6 + 6));
+  }, [set.words, sessionKey]);
+
+  const [roundIndex, setRoundIndex] = useState(0);
+  const [cards, setCards] = useState([]);
+  const [selected, setSelected] = useState([]);
+  const [matched, setMatched] = useState([]);
+  const [wrongFlash, setWrongFlash] = useState([]);
+  const [seconds, setSeconds] = useState(0);
+  const [allDone, setAllDone] = useState(false);
+
+  useEffect(() => {
+    const pool = rounds[roundIndex].map((id) => set.words.find((w) => w.id === id));
+    const wordCards = pool.map((w) => ({ cardId: `${w.id}-w`, wordId: w.id, type: 'word', label: w.word }));
+    const defCards = pool.map((w) => ({ cardId: `${w.id}-d`, wordId: w.id, type: 'def', label: w.definition }));
+    setCards(shuffle([...wordCards, ...defCards]));
+    setMatched([]);
+    setSelected([]);
+    setSeconds(0);
+  }, [roundIndex, rounds, set.words]);
+
+  useEffect(() => {
+    if (allDone) return;
+    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [roundIndex, allDone, sessionKey]);
+
+  useEffect(() => {
+    if (cards.length > 0 && matched.length === cards.length / 2) {
+      const t = setTimeout(() => {
+        if (roundIndex + 1 < rounds.length) setRoundIndex((i) => i + 1);
+        else setAllDone(true);
+      }, 650);
+      return () => clearTimeout(t);
     }
-    case 'open-ai-analyzer':
-      openAIAnalyzerModal();
-      break;
-    case 'run-analysis':
-      runAIAnalysis();
-      break;
-    case 'view-recommended':
-      viewRecommendedMaterial(id);
-      break;
-    case 'clear-filters':
-      clearFilters();
-      break;
-    case 'subscribe':
-      subscribeToPlan(el.dataset.plan);
-      break;
-    case 'open-admin-login':
-      state.isAdminAuthed ? showPage('admin') : openAdminLoginModal();
-      break;
-    case 'admin-logout':
-      adminLogout();
-      break;
-    case 'edit-material':
-      startEditMaterial(id);
-      break;
-    case 'delete-material':
-      deleteMaterial(id);
-      break;
-    case 'cancel-edit':
-      cancelEditMaterial();
-      break;
-    case 'reset-demo-data':
-      resetDemoData();
-      break;
-    default:
-      break;
+  }, [matched, cards.length, roundIndex, rounds.length]);
+
+  function handleClick(card) {
+    if (allDone || matched.includes(card.wordId)) return;
+    if (selected.some((c) => c.cardId === card.cardId) || selected.length === 2) return;
+    const next = [...selected, card];
+    setSelected(next);
+    if (next.length === 2) {
+      const [a, b] = next;
+      if (a.wordId === b.wordId && a.type !== b.type) {
+        setTimeout(() => {
+          setMatched((m) => [...m, a.wordId]);
+          setSelected([]);
+        }, 300);
+      } else {
+        setWrongFlash([a.cardId, b.cardId]);
+        setTimeout(() => {
+          setWrongFlash([]);
+          setSelected([]);
+        }, 500);
+      }
+    }
   }
-}
 
-function handleGlobalKeydown(event) {
-  if (event.key === 'Escape' && state.openModalId) {
-    closeModal(state.openModalId);
+  function restart() {
+    setSessionKey((k) => k + 1);
+    setRoundIndex(0);
+    setAllDone(false);
   }
-  if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-action="open-material"]')) {
-    event.preventDefault();
-    event.target.click();
+
+  if (allDone) {
+    return (
+      <ModeCompletion
+        title="All rounds matched!"
+        stat="You paired every word across 4 rounds."
+        onBack={onBack}
+        onRestart={restart}
+      />
+    );
   }
+
+  return (
+    <div className="mx-auto max-w-2xl">
+      <ModeHeader
+        onBack={onBack}
+        title="Matching"
+        progress={`Round ${roundIndex + 1} / ${rounds.length}`}
+        extra={
+          <span className="flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">
+            <Clock className="h-3.5 w-3.5" /> {formatTime(seconds)}
+          </span>
+        }
+      />
+      <div className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-4">
+        {cards.map((card) => {
+          const isMatched = matched.includes(card.wordId);
+          const isSelected = selected.some((c) => c.cardId === card.cardId);
+          const isWrong = wrongFlash.includes(card.cardId);
+          let cls =
+            'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:shadow-sm';
+          if (isMatched) cls = 'border-emerald-200 bg-emerald-50 text-emerald-600 opacity-60';
+          else if (isWrong) cls = 'border-red-300 bg-red-50 text-red-600';
+          else if (isSelected) cls = 'border-blue-400 bg-blue-50 text-blue-700';
+          return (
+            <button
+              key={card.cardId}
+              onClick={() => handleClick(card)}
+              disabled={isMatched}
+              className={`flex min-h-24 items-center justify-center rounded-2xl border p-3 text-center text-sm font-medium leading-snug transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${cls}`}
+            >
+              {card.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-/* ---------------------------------------------------------------------- *
- * 13. SMALL UTILITIES
- * ---------------------------------------------------------------------- */
+/* ------------------------------------------------------------------ */
+/*  SPEED MODE                                                           */
+/* ------------------------------------------------------------------ */
 
-function humanizeTag(tag) {
-  return TAG_LABELS[tag] || tag;
+function SpeedMode({ set, onBack, onUpdateStatus }) {
+  const [sessionKey, setSessionKey] = useState(0);
+  const queue = useMemo(() => shuffle(set.words), [set.words, sessionKey]);
+  const [index, setIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(60);
+  const [feedback, setFeedback] = useState(null);
+  const [choices, setChoices] = useState(null);
+
+  const done = timeLeft <= 0 || index >= queue.length;
+  const current = !done ? queue[index] : null;
+
+  useEffect(() => {
+    if (done) return;
+    const t = setInterval(() => setTimeLeft((s) => (s <= 1 ? 0 : s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [done, sessionKey]);
+
+  useEffect(() => {
+    if (!current) return;
+    const pool = set.words.filter((w) => w.id !== current.id);
+    const distractor = pool[Math.floor(Math.random() * pool.length)];
+    setChoices(
+      shuffle([
+        { id: current.id, text: current.definition, correct: true },
+        { id: distractor.id, text: distractor.definition, correct: false },
+      ])
+    );
+    setFeedback(null);
+  }, [current, set.words]);
+
+  const choose = useCallback(
+    (choice) => {
+      if (!current || feedback) return;
+      setFeedback(choice.correct ? 'correct' : 'wrong');
+      onUpdateStatus(current.id, choice.correct ? 'mastered' : 'learning');
+      if (choice.correct) setScore((s) => s + 1);
+      setTimeout(() => setIndex((i) => i + 1), 380);
+    },
+    [current, feedback, onUpdateStatus]
+  );
+
+  useEffect(() => {
+    function onKey(e) {
+      if (done || !choices || feedback) return;
+      if (e.key === '1') choose(choices[0]);
+      else if (e.key === '2') choose(choices[1]);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [done, choices, feedback, choose]);
+
+  function restart() {
+    setSessionKey((k) => k + 1);
+    setIndex(0);
+    setScore(0);
+    setTimeLeft(60);
+    setFeedback(null);
+  }
+
+  if (done) {
+    const clearedAll = index >= queue.length;
+    return (
+      <ModeCompletion
+        title={clearedAll ? 'You cleared the set!' : "Time's up!"}
+        stat={`${score} correct out of ${index} answered`}
+        onBack={onBack}
+        onRestart={restart}
+      />
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-xl text-center">
+      <ModeHeader onBack={onBack} title="Speed" progress={`Score ${score}`} />
+      <div className="mt-10 flex flex-col items-center">
+        <h2 className="text-5xl font-bold tracking-tight text-slate-900">{current.word}</h2>
+        <div className="mt-3">
+          <TagPill tag={current.tag} />
+        </div>
+        <div className="mt-6 flex h-16 w-16 items-center justify-center rounded-full border-4 border-blue-100 bg-blue-50 text-lg font-bold text-blue-600">
+          {formatTime(timeLeft)}
+        </div>
+      </div>
+      <div className="mt-10 grid gap-4 sm:grid-cols-2">
+        {choices &&
+          choices.map((choice, i) => {
+            let cls = 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:shadow-sm';
+            if (feedback && choice.correct) cls = 'border-emerald-400 bg-emerald-50 text-emerald-700';
+            else if (feedback && !choice.correct) cls = 'border-red-300 bg-red-50 text-red-500';
+            return (
+              <button
+                key={choice.id + i}
+                onClick={() => choose(choice)}
+                className={`flex items-start gap-3 rounded-2xl border p-5 text-left text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${cls}`}
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                  {i + 1}
+                </span>
+                <span>{choice.text}</span>
+              </button>
+            );
+          })}
+      </div>
+      <p className="mt-6 text-xs text-slate-400">
+        <kbd className="rounded border border-slate-200 px-1.5 py-0.5 font-sans">1</kbd> /{' '}
+        <kbd className="rounded border border-slate-200 px-1.5 py-0.5 font-sans">2</kbd> to choose
+      </p>
+    </div>
+  );
 }
 
-function generateId() {
-  return 'm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+/* ------------------------------------------------------------------ */
+/*  TEST MODE                                                            */
+/* ------------------------------------------------------------------ */
+
+function TestMode({ set, onBack, onUpdateStatus }) {
+  const [sessionKey, setSessionKey] = useState(0);
+  const questions = useMemo(() => {
+    const picked = shuffle(set.words).slice(0, Math.min(10, set.words.length));
+    return picked.map((w) => {
+      const pool = set.words.filter((o) => o.id !== w.id);
+      const distractors = shuffle(pool).slice(0, 3).map((o) => o.word);
+      const options = shuffle([w.word, ...distractors]);
+      return { word: w, blanked: blankOutWord(w.example, w.word, w.altForms), options };
+    });
+  }, [set.words, sessionKey]);
+
+  const [index, setIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [picked, setPicked] = useState(null);
+
+  const done = index >= questions.length;
+  const current = !done ? questions[index] : null;
+
+  function choose(option) {
+    if (picked || !current) return;
+    setPicked(option);
+    const correct = option === current.word.word;
+    onUpdateStatus(current.word.id, correct ? 'mastered' : 'learning');
+    if (correct) setScore((s) => s + 1);
+    setTimeout(() => {
+      setPicked(null);
+      setIndex((i) => i + 1);
+    }, 700);
+  }
+
+  function restart() {
+    setSessionKey((k) => k + 1);
+    setIndex(0);
+    setScore(0);
+    setPicked(null);
+  }
+
+  if (done) {
+    return (
+      <ModeCompletion
+        title="Test complete!"
+        stat={`${score} / ${questions.length} correct`}
+        onBack={onBack}
+        onRestart={restart}
+      />
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-xl">
+      <ModeHeader onBack={onBack} title="Test" progress={`${index + 1} / ${questions.length}`} />
+      <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
+        <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Words in context</span>
+        <p className="mt-3 text-lg font-medium leading-relaxed text-slate-800">{current.blanked}</p>
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        {current.options.map((opt) => {
+          const isCorrect = opt === current.word.word;
+          const show = picked !== null;
+          let cls = 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:shadow-sm';
+          if (show && isCorrect) cls = 'border-emerald-400 bg-emerald-50 text-emerald-700';
+          else if (show && opt === picked) cls = 'border-red-300 bg-red-50 text-red-500';
+          return (
+            <button
+              key={opt}
+              onClick={() => choose(opt)}
+              className={`rounded-2xl border p-4 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${cls}`}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-// Escapes text for safe insertion into innerHTML strings (admin-entered
-// titles/tags/descriptions included).
-function escapeHTML(str) {
-  const div = document.createElement('div');
-  div.textContent = String(str);
-  return div.innerHTML;
-}
+/* ------------------------------------------------------------------ */
+/*  APP                                                                   */
+/* ------------------------------------------------------------------ */
 
-document.addEventListener('DOMContentLoaded', init);
+export default function App() {
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [selectedPackageId, setSelectedPackageId] = useState(null);
+  const [selectedSetId, setSelectedSetId] = useState(null);
+  const [wordProgress, setWordProgress] = useState(() => buildInitialProgress(PACKAGES));
+
+  const updateStatus = useCallback((wordId, status) => {
+    setWordProgress((prev) => ({ ...prev, [wordId]: status }));
+  }, []);
+
+  const packages = useMemo(() => PACKAGES.map((p) => decoratePackage(p, wordProgress)), [wordProgress]);
+  const selectedPackage = useMemo(
+    () => packages.find((p) => p.id === selectedPackageId) || null,
+    [packages, selectedPackageId]
+  );
+  const selectedSet = useMemo(
+    () => (selectedPackage ? selectedPackage.sets.find((s) => s.id === selectedSetId) || null : null),
+    [selectedPackage, selectedSetId]
+  );
+
+  function openPackage(id) {
+    setSelectedPackageId(id);
+    setCurrentView('set-list');
+  }
+  function openSet(id) {
+    setSelectedSetId(id);
+    setCurrentView('set-details');
+  }
+  function startMode(mode) {
+    setCurrentView(`mode-${mode}`);
+  }
+  function backToDashboard() {
+    setCurrentView('dashboard');
+    setSelectedPackageId(null);
+    setSelectedSetId(null);
+  }
+  function backToSetList() {
+    setCurrentView('set-list');
+    setSelectedSetId(null);
+  }
+  function backToSetDetails() {
+    setCurrentView('set-details');
+  }
+
+  let body;
+  if (currentView === 'set-list' && selectedPackage) {
+    body = <SetListView pkg={selectedPackage} onBack={backToDashboard} onOpenSet={openSet} />;
+  } else if (currentView === 'set-details' && selectedPackage && selectedSet) {
+    body = (
+      <SetDetailsView
+        pkg={selectedPackage}
+        set={selectedSet}
+        onBack={backToSetList}
+        onStartMode={startMode}
+        onUpdateStatus={updateStatus}
+      />
+    );
+  } else if (currentView === 'mode-flashcard' && selectedSet) {
+    body = <FlashcardMode set={selectedSet} onBack={backToSetDetails} onUpdateStatus={updateStatus} />;
+  } else if (currentView === 'mode-matching' && selectedSet) {
+    body = <MatchingMode set={selectedSet} onBack={backToSetDetails} />;
+  } else if (currentView === 'mode-speed' && selectedSet) {
+    body = <SpeedMode set={selectedSet} onBack={backToSetDetails} onUpdateStatus={updateStatus} />;
+  } else if (currentView === 'mode-test' && selectedSet) {
+    body = <TestMode set={selectedSet} onBack={backToSetDetails} onUpdateStatus={updateStatus} />;
+  } else {
+    body = <Dashboard packages={packages} onOpen={openPackage} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <style>{`
+        @keyframes vbFadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .vb-fade-in { animation: vbFadeIn 0.35s ease-out; }
+      `}</style>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <div key={currentView + (selectedSetId || '')} className="vb-fade-in">
+          {body}
+        </div>
+      </div>
+    </div>
+  );
+}
